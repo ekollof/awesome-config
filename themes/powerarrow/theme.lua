@@ -374,18 +374,45 @@ mpdwidget:connect_signal("mouse::leave", mpd_popup_hide)
 
 -- MEM
 local memicon = wibox.widget.imagebox(theme.widget_mem)
+local mem_now_last = {}
 local mem = lain.widget.mem({
     settings = function()
+        mem_now_last = mem_now
         widget:set_markup(markup.font(theme.font, " " .. mem_now.used .. "MB "))
     end
+})
+local mem_tooltip = awful.tooltip({
+    objects = { mem.widget, memicon },
+    timer_function = function()
+        local m = mem_now_last
+        return string.format(
+            "RAM:  %d MB used / %d MB total (%d%%)\nCache: %d MB   Buffers: %d MB\nSwap: %d MB used / %d MB total",
+            m.used or 0, m.total or 0, m.perc or 0,
+            m.cache or 0, m.buf or 0,
+            m.swapused or 0, m.swap or 0)
+    end,
+    timeout = 2,
 })
 
 -- CPU
 local cpuicon = wibox.widget.imagebox(theme.widget_cpu)
+local cpu_now_last = {}
 local cpu = lain.widget.cpu({
     settings = function()
+        cpu_now_last = cpu_now
         widget:set_markup(markup.font(theme.font, " " .. cpu_now.usage .. "% "))
     end
+})
+local cpu_tooltip = awful.tooltip({
+    objects = { cpu.widget, cpuicon },
+    timer_function = function()
+        local lines = {}
+        for i, core in ipairs(cpu_now_last) do
+            table.insert(lines, string.format("Core %-2d: %3d%%", i - 1, core.usage or 0))
+        end
+        return #lines > 0 and table.concat(lines, "\n") or "No data"
+    end,
+    timeout = 2,
 })
 
 --[[ Coretemp (lm_sensors, per core)
@@ -424,14 +451,35 @@ local function find_tempfile()
 end
 
 local _tempfile = find_tempfile()
+local _tempdir  = _tempfile and _tempfile:match("^(.+)/temp%d+_input$")
 
+local tempicon = wibox.widget.imagebox(theme.widget_temp)
 local temp = { widget = wibox.widget.textbox() }
+local temp_tooltip = awful.tooltip({ objects = { temp.widget, tempicon } })
+
 if _tempfile then
     -- Linux: read directly from sysfs, divide by 1000
     awful.widget.watch({"cat", _tempfile}, 5, function(widget, stdout)
         local val = tonumber(stdout:match("%d+"))
         local deg = val and string.format("%.0f", val / 1e3) or "?"
         widget:set_markup(markup.font(theme.font, " " .. deg .. "°C "))
+        -- Build tooltip from all temp nodes in the same hwmon dir
+        if _tempdir then
+            awful.spawn.easy_async_with_shell(
+                string.format("for f in %s/temp*_input; do label=%s/$(basename $f _input)_label; echo \"$(cat $label 2>/dev/null || basename $f _input): $(cat $f)\"; done", _tempdir, _tempdir),
+                function(out)
+                    local lines = {}
+                    for line in out:gmatch("[^\n]+") do
+                        local label, raw = line:match("^(.+): (%d+)$")
+                        if label and raw then
+                            table.insert(lines, string.format("%-20s %5.1f°C", label, tonumber(raw) / 1e3))
+                        end
+                    end
+                    if #lines > 0 then
+                        temp_tooltip:set_text(table.concat(lines, "\n"))
+                    end
+                end)
+        end
     end, temp.widget)
 else
     -- BSD: read via sysctl
@@ -442,7 +490,6 @@ else
         widget:set_markup(markup.font(theme.font, " " .. deg .. "°C "))
     end, temp.widget)
 end
-local tempicon = wibox.widget.imagebox(theme.widget_temp)
 
 -- Battery (only created when a battery is present)
 local has_battery = require("gears.filesystem").dir_readable("/sys/class/power_supply/") and
@@ -481,9 +528,11 @@ end
 
 -- Net
 local neticon = wibox.widget.imagebox(theme.widget_net)
+local net_now_last = {}
 local net = lain.widget.net({
     format = "%g",
     settings = function()
+        net_now_last = net_now
         local function fmt(val)
             local n = tonumber(val) or 0
             if n >= 1024 then
@@ -495,6 +544,26 @@ local net = lain.widget.net({
         widget:set_markup(markup.fontfg(theme.font, theme.fg_normal,
             " " .. fmt(net_now.received) .. "↓ " .. fmt(net_now.sent) .. "↑ "))
     end
+})
+local net_tooltip = awful.tooltip({
+    objects = { net.widget, neticon },
+    timer_function = function()
+        local lines = {}
+        local n = net_now_last
+        if n and n.devices then
+            for dev, d in pairs(n.devices) do
+                local state = d.carrier == "1" and "up" or "down"
+                table.insert(lines, string.format("%-12s  ↓%8s  ↑%8s  [%s]",
+                    dev,
+                    d.received or "0",
+                    d.sent or "0",
+                    state))
+            end
+            table.sort(lines)
+        end
+        return #lines > 0 and table.concat(lines, "\n") or "No data"
+    end,
+    timeout = 2,
 })
 
 -- Weather widget (API key from pass, coordinates resolved via GeoIP)

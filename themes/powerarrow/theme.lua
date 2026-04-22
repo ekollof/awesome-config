@@ -381,18 +381,67 @@ local mem = lain.widget.mem({
         widget:set_markup(markup.font(theme.font, " " .. mem_now.used .. "MB "))
     end
 })
-local mem_tooltip = awful.tooltip({
-    objects = { mem.widget, memicon },
-    timer_function = function()
-        local m = mem_now_last
-        return string.format(
-            "RAM:  %d MB used / %d MB total (%d%%)\nCache: %d MB   Buffers: %d MB\nSwap: %d MB used / %d MB total",
-            m.used or 0, m.total or 0, m.perc or 0,
-            m.cache or 0, m.buf or 0,
-            m.swapused or 0, m.swap or 0)
-    end,
-    timeout = 2,
-})
+
+local mem_popup_wibox = nil
+local function mem_popup_show()
+    if mem_popup_wibox then return end
+    local m = mem_now_last
+    if not m or not m.total then return end
+
+    local function row(label, value)
+        return wibox.widget {
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", label),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(120),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, value),
+                widget = wibox.widget.textbox,
+            },
+            layout = wibox.layout.fixed.horizontal,
+        }
+    end
+
+    local grid = wibox.widget {
+        row("RAM used",   string.format("%d MB / %d MB (%d%%)", m.used, m.total, m.perc)),
+        row("Cache",      string.format("%d MB", m.cache)),
+        row("Buffers",    string.format("%d MB", m.buf)),
+        row("Swap used",  string.format("%d MB / %d MB", m.swapused, m.swap)),
+        layout = wibox.layout.fixed.vertical,
+        spacing = dpi(4),
+    }
+
+    local popup_w = dpi(280)
+    local s  = awful.screen.focused()
+    local wb = s.mywibox
+    local mouse_x = mouse.coords().x
+    local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
+    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
+
+    mem_popup_wibox = wibox {
+        width        = popup_w,
+        x            = px,
+        y            = py,
+        bg           = theme.bg_normal,
+        border_width = dpi(1),
+        border_color = theme.border_focus,
+        ontop        = true,
+        visible      = true,
+        screen       = s,
+    }
+    mem_popup_wibox:setup {
+        wibox.container.margin(grid, dpi(10), dpi(10), dpi(8), dpi(8)),
+        widget = wibox.container.background,
+    }
+end
+local function mem_popup_hide()
+    if mem_popup_wibox then mem_popup_wibox.visible = false; mem_popup_wibox = nil end
+end
+memicon:connect_signal("mouse::enter", mem_popup_show)
+mem.widget:connect_signal("mouse::enter", mem_popup_show)
+memicon:connect_signal("mouse::leave", mem_popup_hide)
+mem.widget:connect_signal("mouse::leave", mem_popup_hide)
 
 -- CPU
 local cpuicon = wibox.widget.imagebox(theme.widget_cpu)
@@ -403,17 +452,80 @@ local cpu = lain.widget.cpu({
         widget:set_markup(markup.font(theme.font, " " .. cpu_now.usage .. "% "))
     end
 })
-local cpu_tooltip = awful.tooltip({
-    objects = { cpu.widget, cpuicon },
-    timer_function = function()
-        local lines = {}
-        for i, core in ipairs(cpu_now_last) do
-            table.insert(lines, string.format("Core %-2d: %3d%%", i - 1, core.usage or 0))
+
+local cpu_popup_wibox = nil
+local function cpu_popup_show()
+    if cpu_popup_wibox then return end
+    local cores = cpu_now_last
+    if not cores or #cores == 0 then return end
+
+    local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(3) }
+    -- Lay cores out in two columns
+    local i = 1
+    while i <= #cores do
+        local left_label  = string.format("Core %-2d", i - 1)
+        local left_val    = string.format("%3d%%", cores[i].usage or 0)
+        local right_label = ""
+        local right_val   = ""
+        if cores[i + 1] then
+            right_label = string.format("Core %-2d", i)
+            right_val   = string.format("%3d%%", cores[i + 1].usage or 0)
         end
-        return #lines > 0 and table.concat(lines, "\n") or "No data"
-    end,
-    timeout = 2,
-})
+        rows:add(wibox.widget {
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", left_label .. "  "),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(70),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, left_val),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(40),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "   " .. right_label .. "  "),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(80),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, right_val),
+                widget = wibox.widget.textbox,
+            },
+            layout = wibox.layout.fixed.horizontal,
+        })
+        i = i + 2
+    end
+
+    local popup_w = dpi(240)
+    local s  = awful.screen.focused()
+    local wb = s.mywibox
+    local mouse_x = mouse.coords().x
+    local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
+    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
+
+    cpu_popup_wibox = wibox {
+        width        = popup_w,
+        x            = px,
+        y            = py,
+        bg           = theme.bg_normal,
+        border_width = dpi(1),
+        border_color = theme.border_focus,
+        ontop        = true,
+        visible      = true,
+        screen       = s,
+    }
+    cpu_popup_wibox:setup {
+        wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
+        widget = wibox.container.background,
+    }
+end
+local function cpu_popup_hide()
+    if cpu_popup_wibox then cpu_popup_wibox.visible = false; cpu_popup_wibox = nil end
+end
+cpuicon:connect_signal("mouse::enter", cpu_popup_show)
+cpu.widget:connect_signal("mouse::enter", cpu_popup_show)
+cpuicon:connect_signal("mouse::leave", cpu_popup_hide)
+cpu.widget:connect_signal("mouse::leave", cpu_popup_hide)
 
 --[[ Coretemp (lm_sensors, per core)
 local tempwidget = awful.widget.watch({awful.util.shell, '-c', 'sensors | grep Core'}, 30,
@@ -455,7 +567,60 @@ local _tempdir  = _tempfile and _tempfile:match("^(.+)/temp%d+_input$")
 
 local tempicon = wibox.widget.imagebox(theme.widget_temp)
 local temp = { widget = wibox.widget.textbox() }
-local temp_tooltip = awful.tooltip({ objects = { temp.widget, tempicon } })
+
+local temp_popup_wibox = nil
+local temp_popup_lines = {}   -- updated each watch tick
+
+local function temp_popup_show()
+    if temp_popup_wibox then return end
+    if #temp_popup_lines == 0 then return end
+
+    local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
+    for _, entry in ipairs(temp_popup_lines) do
+        rows:add(wibox.widget {
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", entry.label),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(160),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, entry.value),
+                widget = wibox.widget.textbox,
+            },
+            layout = wibox.layout.fixed.horizontal,
+        })
+    end
+
+    local popup_w = dpi(260)
+    local s  = awful.screen.focused()
+    local wb = s.mywibox
+    local mouse_x = mouse.coords().x
+    local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
+    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
+
+    temp_popup_wibox = wibox {
+        width        = popup_w,
+        x            = px,
+        y            = py,
+        bg           = theme.bg_normal,
+        border_width = dpi(1),
+        border_color = theme.border_focus,
+        ontop        = true,
+        visible      = true,
+        screen       = s,
+    }
+    temp_popup_wibox:setup {
+        wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
+        widget = wibox.container.background,
+    }
+end
+local function temp_popup_hide()
+    if temp_popup_wibox then temp_popup_wibox.visible = false; temp_popup_wibox = nil end
+end
+tempicon:connect_signal("mouse::enter", temp_popup_show)
+temp.widget:connect_signal("mouse::enter", temp_popup_show)
+tempicon:connect_signal("mouse::leave", temp_popup_hide)
+temp.widget:connect_signal("mouse::leave", temp_popup_hide)
 
 if _tempfile then
     -- Linux: read directly from sysfs, divide by 1000
@@ -463,20 +628,20 @@ if _tempfile then
         local val = tonumber(stdout:match("%d+"))
         local deg = val and string.format("%.0f", val / 1e3) or "?"
         widget:set_markup(markup.font(theme.font, " " .. deg .. "°C "))
-        -- Build tooltip from all temp nodes in the same hwmon dir
+        -- Build popup data from all temp nodes in the same hwmon dir
         if _tempdir then
             awful.spawn.easy_async_with_shell(
                 string.format("for f in %s/temp*_input; do label=%s/$(basename $f _input)_label; echo \"$(cat $label 2>/dev/null || basename $f _input): $(cat $f)\"; done", _tempdir, _tempdir),
                 function(out)
-                    local lines = {}
+                    temp_popup_lines = {}
                     for line in out:gmatch("[^\n]+") do
                         local label, raw = line:match("^(.+): (%d+)$")
                         if label and raw then
-                            table.insert(lines, string.format("%-20s %5.1f°C", label, tonumber(raw) / 1e3))
+                            table.insert(temp_popup_lines, {
+                                label = label,
+                                value = string.format("%.1f°C", tonumber(raw) / 1e3),
+                            })
                         end
-                    end
-                    if #lines > 0 then
-                        temp_tooltip:set_text(table.concat(lines, "\n"))
                     end
                 end)
         end
@@ -545,26 +710,84 @@ local net = lain.widget.net({
             " " .. fmt(net_now.received) .. "↓ " .. fmt(net_now.sent) .. "↑ "))
     end
 })
-local net_tooltip = awful.tooltip({
-    objects = { net.widget, neticon },
-    timer_function = function()
-        local lines = {}
-        local n = net_now_last
-        if n and n.devices then
-            for dev, d in pairs(n.devices) do
-                local state = d.carrier == "1" and "up" or "down"
-                table.insert(lines, string.format("%-12s  ↓%8s  ↑%8s  [%s]",
-                    dev,
-                    d.received or "0",
-                    d.sent or "0",
-                    state))
-            end
-            table.sort(lines)
-        end
-        return #lines > 0 and table.concat(lines, "\n") or "No data"
-    end,
-    timeout = 2,
-})
+
+local net_popup_wibox = nil
+local function net_popup_show()
+    if net_popup_wibox then return end
+    local n = net_now_last
+    if not n or not n.devices then return end
+
+    local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
+    local devs = {}
+    for dev in pairs(n.devices) do table.insert(devs, dev) end
+    table.sort(devs)
+
+    for _, dev in ipairs(devs) do
+        local d = n.devices[dev]
+        local state = d.carrier == "1" and "up" or "down"
+        local state_color = d.carrier == "1" and "#a6e3a1" or "#f38ba8"
+        rows:add(wibox.widget {
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, "<b>" .. dev .. "</b>"),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(100),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "↓ "),
+                widget = wibox.widget.textbox,
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, string.format("%8s", d.received or "0")),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(80),
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "↑ "),
+                widget = wibox.widget.textbox,
+            },
+            {
+                markup = markup.fontfg(theme.font, theme.fg_normal, string.format("%8s", d.sent or "0")),
+                widget = wibox.widget.textbox,
+                forced_width = dpi(80),
+            },
+            {
+                markup = markup.fontfg(theme.font, state_color, "  " .. state),
+                widget = wibox.widget.textbox,
+            },
+            layout = wibox.layout.fixed.horizontal,
+        })
+    end
+
+    local popup_w = dpi(360)
+    local s  = awful.screen.focused()
+    local wb = s.mywibox
+    local mouse_x = mouse.coords().x
+    local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
+    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
+
+    net_popup_wibox = wibox {
+        width        = popup_w,
+        x            = px,
+        y            = py,
+        bg           = theme.bg_normal,
+        border_width = dpi(1),
+        border_color = theme.border_focus,
+        ontop        = true,
+        visible      = true,
+        screen       = s,
+    }
+    net_popup_wibox:setup {
+        wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
+        widget = wibox.container.background,
+    }
+end
+local function net_popup_hide()
+    if net_popup_wibox then net_popup_wibox.visible = false; net_popup_wibox = nil end
+end
+neticon:connect_signal("mouse::enter", net_popup_show)
+net.widget:connect_signal("mouse::enter", net_popup_show)
+neticon:connect_signal("mouse::leave", net_popup_hide)
+net.widget:connect_signal("mouse::leave", net_popup_hide)
 
 -- Weather widget (API key from pass, coordinates resolved via GeoIP)
 -- Callbacks stored so each screen can spawn its own widget instance

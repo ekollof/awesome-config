@@ -23,6 +23,12 @@ require("awful.autofocus")
 -- Widget and layout library
 local wibox = require("wibox")
 
+-- OS detection (used for portable power commands etc.)
+local _is_linux = io.open("/proc/version", "r") ~= nil
+local _suspend_cmd  = _is_linux and "systemctl suspend"  or "acpiconf -s 3"
+local _reboot_cmd   = _is_linux and "systemctl reboot"   or "shutdown -r now"
+local _poweroff_cmd = _is_linux and "systemctl poweroff" or "shutdown -p now"
+
 -- Theme handling library
 local beautiful = require("beautiful")
 
@@ -259,9 +265,9 @@ awful.util.mymainmenu = freedesktop.menu.build({
 				awesome.quit()
 			end,
 		},
-		{ "Sleep", "systemctl suspend" },
-		{ "Restart", "systemctl reboot" },
-		{ "Shutdown", "systemctl poweroff" },
+		{ "Sleep",    _suspend_cmd },
+		{ "Restart",  _reboot_cmd },
+		{ "Shutdown", _poweroff_cmd },
 		-- other triads can be put here
 	},
 })
@@ -684,33 +690,33 @@ globalkeys = my_table.join(
 
 	-- Brightness
 	awful.key({}, "XF86MonBrightnessUp", function()
-		os.execute("xbacklight -inc 10")
+		awful.spawn.with_shell("xbacklight -inc 10")
 	end, { description = "+10%", group = "hotkeys" }),
 	awful.key({}, "XF86MonBrightnessDown", function()
-		os.execute("xbacklight -dec 10")
+		awful.spawn.with_shell("xbacklight -dec 10")
 	end, { description = "-10%", group = "hotkeys" }),
 
 	-- PulseAudio/PipeWire volume control
 	--awful.key({ modkey1 }, "Up",
 	awful.key({}, "XF86AudioRaiseVolume", function()
-		os.execute("pactl set-sink-volume @DEFAULT_SINK@ +1%")
+		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ +1%")
 		beautiful.volume.update()
 	end),
 	--awful.key({ modkey1 }, "Down",
 	awful.key({}, "XF86AudioLowerVolume", function()
-		os.execute("pactl set-sink-volume @DEFAULT_SINK@ -1%")
+		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ -1%")
 		beautiful.volume.update()
 	end),
 	awful.key({}, "XF86AudioMute", function()
-		os.execute("pactl set-sink-mute @DEFAULT_SINK@ toggle")
+		awful.spawn.with_shell("pactl set-sink-mute @DEFAULT_SINK@ toggle")
 		beautiful.volume.update()
 	end),
 	awful.key({ modkey1, "Shift" }, "m", function()
-		os.execute("pactl set-sink-volume @DEFAULT_SINK@ 100%")
+		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ 100%")
 		beautiful.volume.update()
 	end),
 	awful.key({ modkey1, "Shift" }, "0", function()
-		os.execute("pactl set-sink-volume @DEFAULT_SINK@ 0%")
+		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ 0%")
 		beautiful.volume.update()
 	end),
 
@@ -736,19 +742,19 @@ globalkeys = my_table.join(
 
 	-- MPD control
 	awful.key({ modkey1, "Shift" }, "Up", function()
-		os.execute("mpc toggle")
+		awful.spawn.with_shell("mpc toggle")
 		beautiful.mpd.update()
 	end, { description = "mpc toggle", group = "widgets" }),
 	awful.key({ modkey1, "Shift" }, "Down", function()
-		os.execute("mpc stop")
+		awful.spawn.with_shell("mpc stop")
 		beautiful.mpd.update()
 	end, { description = "mpc stop", group = "widgets" }),
 	awful.key({ modkey1, "Shift" }, "Left", function()
-		os.execute("mpc prev")
+		awful.spawn.with_shell("mpc prev")
 		beautiful.mpd.update()
 	end, { description = "mpc prev", group = "widgets" }),
 	awful.key({ modkey1, "Shift" }, "Right", function()
-		os.execute("mpc next")
+		awful.spawn.with_shell("mpc next")
 		beautiful.mpd.update()
 	end, { description = "mpc next", group = "widgets" }),
 	awful.key({ modkey1, "Shift" }, "s", function()

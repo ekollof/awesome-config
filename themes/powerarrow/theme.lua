@@ -213,7 +213,7 @@ local mpd_cover_surface = nil   -- cairo.ImageSurface, loaded in memory
 
 local function mpd_fetch_cover(file, callback)
     awful.spawn.easy_async_with_shell(
-        string.format("mpc readpicture %q 2>/dev/null | base64 -w0", file),
+        string.format("mpc readpicture %q 2>/dev/null | base64", file),
         function(out)
             if not out or #out < 4 then callback(nil); return end
             local ok, surf = pcall(function()
@@ -474,7 +474,7 @@ end
 
 local function mem_fetch_procs(callback)
     awful.spawn.easy_async_with_shell(
-        "ps -e -o rss,comm --sort=-rss 2>/dev/null | awk 'NR>1 && NR<=11 {printf \"%s %s\\n\", $1, $2}'",
+        "ps -axo rss,comm 2>/dev/null | sort -rn | awk 'NR<=10 {printf \"%s %s\\n\", $1, $2}'",
         function(out)
             local procs = {}
             for rss, name in out:gmatch("(%d+)%s+(%S+)") do
@@ -689,9 +689,14 @@ end)
 --]]
 -- Coretemp — portable sensor detection
 -- Searches hwmon by driver name on Linux, falls back to sysctl on BSD
+local _is_linux = io.open("/proc/version", "r") ~= nil
+
 local function find_hwmon_dir(drivers)
+    -- /sys/class/hwmon/ is Linux-only
+    if not _is_linux then return nil, nil end
     for _, name in ipairs(drivers) do
-        local iter = io.popen("grep -rl '^" .. name .. "$' /sys/class/hwmon/*/name 2>/dev/null | head -1")
+        -- grep -l: the glob already expands paths, no -r needed
+        local iter = io.popen("grep -l '^" .. name .. "$' /sys/class/hwmon/*/name 2>/dev/null | head -1")
         if iter then
             local namefile = iter:read("*l"); iter:close()
             if namefile then
@@ -783,9 +788,9 @@ if _tempfile then
         local function read_hwmon_temps(dir, section_label, dest, on_done)
             awful.spawn.easy_async_with_shell(
                 string.format(
-                    "for f in %s/temp*_input; do label=%s/$(basename $f _input)_label;" ..
-                    " echo \"$(cat $label 2>/dev/null || basename $f _input): $(cat $f)\"; done",
-                    dir, dir),
+                    "for f in %s/temp*_input; do label=\"${f%%_input}_label\";" ..
+                    " echo \"$(cat \"$label\" 2>/dev/null || echo \"${f##*/}\" | sed 's/_input$//') : $(cat \"$f\")\"; done",
+                    dir),
                 function(out)
                     table.insert(dest, { label = section_label, value = "", section = true })
                     for line in out:gmatch("[^\n]+") do

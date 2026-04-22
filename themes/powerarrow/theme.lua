@@ -864,25 +864,108 @@ if has_battery then
     })
 end
 
--- Net
+-- Net (portable: uses netstat -ibn which works on Linux, FreeBSD, OpenBSD)
 local neticon = wibox.widget.imagebox(theme.widget_net)
 local net_now_last = {}
-local net = lain.widget.net({
-    format = "%g",
-    settings = function()
-        net_now_last = net_now
-        local function fmt(val)
-            local n = tonumber(val) or 0
-            if n >= 1024 then
-                return string.format("%5.1f M", n / 1024)
-            else
-                return string.format("%5.1f K", n)
+
+local net = { widget = wibox.widget.textbox() }
+local _net_prev   = {}   -- { [dev] = { tx=n, rx=n } }
+local _net_ifaces = nil  -- cached list of non-loopback interfaces
+
+local function net_fmt(kb)
+    if kb >= 1024 then return string.format("%5.1f M", kb / 1024)
+    else               return string.format("%5.1f K", kb) end
+end
+
+-- Build interface list once: all non-loopback interfaces from netstat -ibn
+local function net_get_ifaces(cb)
+    if _net_ifaces then cb(_net_ifaces); return end
+    awful.spawn.easy_async_with_shell(
+        "netstat -ibn 2>/dev/null | awk 'NR>1 && $1 !~ /^lo/ && $1 !~ /Name/ {print $1}' | sort -u",
+        function(out)
+            local ifaces = {}
+            for iface in out:gmatch("[^\n]+") do
+                table.insert(ifaces, iface)
             end
-        end
-        widget:set_markup(markup.fontfg(theme.font, theme.fg_normal,
-            " " .. fmt(net_now.received) .. "↓ " .. fmt(net_now.sent) .. "↑ "))
-    end
-})
+            _net_ifaces = ifaces
+            cb(ifaces)
+        end)
+end
+
+-- Poll byte counters via netstat -ibn; update widget and net_now_last
+local function net_update()
+    net_get_ifaces(function(ifaces)
+        awful.spawn.easy_async_with_shell(
+            "netstat -ibn 2>/dev/null",
+            function(out)
+                -- netstat -ibn columns (Linux & BSD compatible):
+                --   Name Mtu Network Address Ipkts Ierrs Ibytes Opkts Oerrs Obytes [Drop]
+                -- We grab Name(1), Ibytes(7), Obytes(10) — but Linux omits Mtu/Network/Address
+                -- and puts columns differently. Use awk to handle both:
+                -- Linux:  Iface MTU RX-OK RX-ERR RX-DRP RX-OVR TX-OK TX-ERR TX-DRP TX-OVR Flg
+                -- BSD:    Name  Mtu Network   Address       Ipkts Ierrs  Ibytes  Opkts Oerrs  Obytes
+                -- Strategy: run 'netstat -ibn' and also check /proc on Linux for bytes.
+                -- Simpler: on Linux use /sys/class/net; on BSD use netstat -ibn.
+                local devices = {}
+                if _is_linux then
+                    -- Linux: read bytes directly from sysfs (reliable column positions)
+                    for _, dev in ipairs(ifaces) do
+                        local rx_f = io.open("/sys/class/net/" .. dev .. "/statistics/rx_bytes", "r")
+                        local tx_f = io.open("/sys/class/net/" .. dev .. "/statistics/tx_bytes", "r")
+                        local carrier_f = io.open("/sys/class/net/" .. dev .. "/carrier", "r")
+                        local rx = rx_f and tonumber(rx_f:read("*l")) or 0
+                        local tx = tx_f and tonumber(tx_f:read("*l")) or 0
+                        local carrier = carrier_f and carrier_f:read("*l") or "0"
+                        if rx_f then rx_f:close() end
+                        if tx_f then tx_f:close() end
+                        if carrier_f then carrier_f:close() end
+                        devices[dev] = { rx = rx, tx = tx, carrier = carrier }
+                    end
+                else
+                    -- BSD: parse netstat -ibn; take first line per interface (link-level row)
+                    local seen = {}
+                    for line in out:gmatch("[^\n]+") do
+                        local name, ibytes, obytes = line:match("^(%S+)%s+%S+%s+%S+%s+%S+%s+%d+%s+%d+%s+(%d+)%s+%d+%s+%d+%s+(%d+)")
+                        if name and ibytes and obytes and not seen[name] then
+                            seen[name] = true
+                            -- exclude loopback
+                            if not name:match("^lo") then
+                                devices[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1" }
+                            end
+                        end
+                    end
+                end
+
+                -- Calculate rates (bytes/s → KB/s), build net_now_last
+                local now_devices = {}
+                local total_rx_kb, total_tx_kb = 0, 0
+                local timeout = 2  -- matches timer below
+
+                for dev, cur in pairs(devices) do
+                    local prev = _net_prev[dev] or { rx = cur.rx, tx = cur.tx }
+                    local drx = math.max(0, cur.rx - prev.rx)
+                    local dtx = math.max(0, cur.tx - prev.tx)
+                    local rx_kb = drx / timeout / 1024
+                    local tx_kb = dtx / timeout / 1024
+                    total_rx_kb = total_rx_kb + rx_kb
+                    total_tx_kb = total_tx_kb + tx_kb
+                    now_devices[dev] = {
+                        carrier  = cur.carrier,
+                        received = net_fmt(rx_kb),
+                        sent     = net_fmt(tx_kb),
+                    }
+                    _net_prev[dev] = { rx = cur.rx, tx = cur.tx }
+                end
+
+                net_now_last = { devices = now_devices }
+
+                net.widget:set_markup(markup.fontfg(theme.font, theme.fg_normal,
+                    " " .. net_fmt(total_rx_kb) .. "↓ " .. net_fmt(total_tx_kb) .. "↑ "))
+            end)
+    end)
+end
+
+gears.timer { timeout = 2, autostart = true, call_now = true, callback = net_update }
 
 local net_popup       = nil
 local net_popup_timer = nil

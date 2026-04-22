@@ -639,8 +639,7 @@ globalkeys = my_table.join(
 		awful.spawn(terminal)
 	end, { description = terminal, group = "super" }),
 	awful.key({ modkey, "Shift" }, "r", awesome.restart, { description = "reload awesome", group = "awesome" }),
-	-- awful.key({ modkey, "Shift"   }, "x", awesome.quit,
-	--          {description = "quit awesome", group = "awesome"}),
+	awful.key({ modkey, modkey1 }, "q", awesome.quit, { description = "quit awesome", group = "awesome" }),
 
 	awful.key({ altkey, "Shift" }, "l", function()
 		awful.tag.incmwfact(0.05)
@@ -1160,10 +1159,13 @@ end
 run_once("unclutter -root")
 
 -- Feed XDG autostart entries through run_once (match only .desktop lines)
+-- Skip picom — we launch it ourselves below with our own config
 awful.spawn.easy_async_with_shell("~/bin/autostart list 2>/dev/null", function(stdout)
     for cmd in stdout:gmatch("  [^\n]+%.desktop: ([^\n]+)") do
-        run_once(cmd)
+        if not cmd:match("^picom") then
+            run_once(cmd)
+        end
     end
 end)
 
-run_once("picom -b --config $HOME/.config/awesome/picom.conf")
+run_once("picom -b --config " .. os.getenv("HOME") .. "/.config/awesome/picom.conf")

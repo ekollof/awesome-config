@@ -1161,7 +1161,7 @@ awful.spawn.easy_async_with_shell("true", function()
     run_once("unclutter -root")
 
     -- XDG autostart entries (skip picom — launched below with our config)
-    awful.spawn.easy_async_with_shell("~/bin/autostart list 2>/dev/null", function(stdout)
+    awful.spawn.easy_async_with_shell("$HOME/bin/autostart list 2>/dev/null", function(stdout)
         for cmd in stdout:gmatch("  [^\n]+%.desktop: ([^\n]+)") do
             if not cmd:match("^picom") then
                 run_once(cmd)

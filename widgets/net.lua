@@ -33,16 +33,32 @@ end
 
 local function get_ifaces(cb)
     if _ifaces then cb(_ifaces); return end
-    awful.spawn.easy_async_with_shell(
-        "netstat -ibn 2>/dev/null | awk 'NR>1 && $1 !~ /^lo/ && $1 !~ /Name/ {print $1}' | sort -u",
-        function(out)
-            local ifaces = {}
-            for iface in out:gmatch("[^\n]+") do
-                table.insert(ifaces, iface)
+    if _is_linux then
+        -- Read interface names directly from sysfs
+        local ifaces = {}
+        local f = io.popen("ls /sys/class/net/ 2>/dev/null")
+        if f then
+            for name in f:read("*a"):gmatch("[^\n]+") do
+                if name ~= "lo" then
+                    table.insert(ifaces, name)
+                end
             end
-            _ifaces = ifaces
-            cb(ifaces)
-        end)
+            f:close()
+        end
+        _ifaces = ifaces
+        cb(ifaces)
+    else
+        awful.spawn.easy_async_with_shell(
+            "netstat -ibn 2>/dev/null | awk 'NR>1 && $1 !~ /^lo/ && $1 !~ /Name/ {print $1}' | sort -u",
+            function(out)
+                local ifaces = {}
+                for iface in out:gmatch("[^\n]+") do
+                    table.insert(ifaces, iface)
+                end
+                _ifaces = ifaces
+                cb(ifaces)
+            end)
+    end
 end
 
 local function update()

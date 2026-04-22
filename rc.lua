@@ -1155,17 +1155,19 @@ local function run_once(cmd)
     awful.spawn.with_shell(string.format("pgrep -f %q > /dev/null || (%s)", cmd:match("^%S+"), cmd))
 end
 
--- Autostart windowless processes
-run_once("unclutter -root")
+-- Autostart: defer until the event loop is running
+awful.spawn.easy_async_with_shell("true", function()
+    -- Windowless processes
+    run_once("unclutter -root")
 
--- Feed XDG autostart entries through run_once (match only .desktop lines)
--- Skip picom — we launch it ourselves below with our own config
-awful.spawn.easy_async_with_shell("~/bin/autostart list 2>/dev/null", function(stdout)
-    for cmd in stdout:gmatch("  [^\n]+%.desktop: ([^\n]+)") do
-        if not cmd:match("^picom") then
-            run_once(cmd)
+    -- XDG autostart entries (skip picom — launched below with our config)
+    awful.spawn.easy_async_with_shell("~/bin/autostart list 2>/dev/null", function(stdout)
+        for cmd in stdout:gmatch("  [^\n]+%.desktop: ([^\n]+)") do
+            if not cmd:match("^picom") then
+                run_once(cmd)
+            end
         end
-    end
-end)
+    end)
 
-run_once("picom -b --config " .. os.getenv("HOME") .. "/.config/awesome/picom.conf")
+    run_once("picom -b --config " .. os.getenv("HOME") .. "/.config/awesome/picom.conf")
+end)

@@ -208,21 +208,33 @@ local function fmt_time(s)
 end
 
 -- Track change notification
-local mpd_last_title = ""
-local mpd_cover = "/tmp/mpd-cover-0.jpg"
+local mpd_last_title  = ""
+local mpd_cover_surface = nil   -- cairo.ImageSurface, loaded in memory
 
 local function mpd_fetch_cover(file, callback)
-    -- write to a unique path each time to bypass awesome's image path cache
-    local tmpfile = string.format("/tmp/mpd-cover-%d.jpg", os.time())
     awful.spawn.easy_async_with_shell(
-        string.format("mpc readpicture %q > %s 2>/dev/null && echo ok", file, tmpfile),
+        string.format("mpc readpicture %q 2>/dev/null | base64 -w0", file),
         function(out)
-            if out:match("ok") then
-                mpd_cover = tmpfile
-                callback(tmpfile)
-            else
-                callback(nil)
-            end
+            if not out or #out < 4 then callback(nil); return end
+            local ok, surf = pcall(function()
+                local lgi       = require("lgi")
+                local GLib      = lgi.GLib
+                local GdkPixbuf = lgi.GdkPixbuf
+                local Gdk       = lgi.require("Gdk", "3.0")
+                local cairo     = lgi.cairo
+                local Gio       = lgi.Gio
+                local decoded = GLib.base64_decode(out:gsub("%s+", ""))
+                if not decoded or #decoded < 4 then return nil end
+                local stream = Gio.MemoryInputStream.new_from_data(decoded)
+                local pb     = GdkPixbuf.Pixbuf.new_from_stream(stream)
+                if not pb then return nil end
+                local s  = cairo.ImageSurface.create(cairo.Format.ARGB32, pb.width, pb.height)
+                local cr = cairo.Context.create(s)
+                Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
+                cr:paint()
+                return s
+            end)
+            callback(ok and surf or nil)
         end
     )
 end
@@ -261,6 +273,7 @@ theme.mpd = lain.widget.mpd({
                     timeout = 8,
                 })
                 mpd_fetch_cover(n_file, function(cover)
+                    mpd_cover_surface = cover
                     naughty.notify({
                         title       = n_artist,
                         text        = n_text,
@@ -285,7 +298,8 @@ theme.mpd = lain.widget.mpd({
         else
             widget:set_text("")
             mpdicon:set_image(theme.widget_music)
-            mpd_last_title = ""
+            mpd_last_title  = ""
+            mpd_cover_surface = nil
         end
     end
 })
@@ -302,9 +316,7 @@ local function mpd_popup_show()
     if not n or n.state == "stop" then return end
 
     local cover_widget = wibox.widget.imagebox()
-    local has_cover = n.file and n.file ~= "N/A" and
-                      io.open(mpd_cover) ~= nil
-    if has_cover then cover_widget:set_image(mpd_cover) end
+    if mpd_cover_surface then cover_widget:set_image(mpd_cover_surface) end
 
     local lines = {}
     if n.title  ~= "N/A" then lines[#lines+1] = "<b>" .. n.title  .. "</b>" end
@@ -382,57 +394,97 @@ local mem = lain.widget.mem({
     end
 })
 
-local mem_popup_wibox = nil
-local function mem_popup_show()
-    if mem_popup_wibox then return end
-    local m = mem_now_last
-    if not m or not m.total then return end
+local mem_popup       = nil
+local mem_popup_timer = nil
+local mem_proc_last   = {}   -- cached process list {name, mb}
 
-    local function row(label, value)
+local function mem_fetch_procs(callback)
+    awful.spawn.easy_async_with_shell(
+        "ps -e -o rss,comm --sort=-rss 2>/dev/null | awk 'NR>1 && NR<=11 {printf \"%s %s\\n\", $1, $2}'",
+        function(out)
+            local procs = {}
+            for rss, name in out:gmatch("(%d+)%s+(%S+)") do
+                table.insert(procs, { name = name, mb = math.floor(tonumber(rss) / 1024) })
+            end
+            callback(procs)
+        end
+    )
+end
+
+local function mem_build_widget()
+    local m = mem_now_last
+    if not m or not m.total then return nil end
+    local function row(label, value, label_w)
         return wibox.widget {
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", label),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(120),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, value),
-                widget = wibox.widget.textbox,
-            },
+            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", label),
+              widget = wibox.widget.textbox, forced_width = label_w or dpi(120) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, value),
+              widget = wibox.widget.textbox },
             layout = wibox.layout.fixed.horizontal,
         }
     end
 
-    local grid = wibox.widget {
-        row("RAM used",   string.format("%d MB / %d MB (%d%%)", m.used, m.total, m.perc)),
-        row("Cache",      string.format("%d MB", m.cache)),
-        row("Buffers",    string.format("%d MB", m.buf)),
-        row("Swap used",  string.format("%d MB / %d MB", m.swapused, m.swap)),
-        layout = wibox.layout.fixed.vertical,
-        spacing = dpi(4),
+    local stats = wibox.widget {
+        row("RAM used",  string.format("%d MB / %d MB (%d%%)", m.used, m.total, m.perc)),
+        row("Cache",     string.format("%d MB", m.cache)),
+        row("Buffers",   string.format("%d MB", m.buf)),
+        row("Swap used", string.format("%d MB / %d MB", m.swapused, m.swap)),
+        layout = wibox.layout.fixed.vertical, spacing = dpi(4),
     }
 
-    local popup_w = dpi(280)
+    local sep = wibox.widget {
+        markup = markup.fontfg(theme.font, theme.fg_normal .. "44", "─────────────────────────────"),
+        widget = wibox.widget.textbox,
+    }
+
+    local proc_rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(2) }
+    if #mem_proc_last > 0 then
+        for _, p in ipairs(mem_proc_last) do
+            proc_rows:add(row(p.name, string.format("%d MB", p.mb), dpi(180)))
+        end
+    else
+        proc_rows:add(wibox.widget {
+            markup = markup.fontfg(theme.font, theme.fg_normal .. "66", "loading…"),
+            widget = wibox.widget.textbox,
+        })
+    end
+
+    return wibox.container.margin(wibox.widget {
+        stats, sep, proc_rows,
+        layout = wibox.layout.fixed.vertical, spacing = dpi(6),
+    }, dpi(10), dpi(10), dpi(8), dpi(8))
+end
+
+local function mem_popup_show()
+    if mem_popup then return end
+    local w = mem_build_widget()
+    if not w then return end
     local s  = awful.screen.focused()
     local wb = s.mywibox
-    local mouse_x = mouse.coords().x
+    local px = math.min(mouse.coords().x, s.geometry.x + s.geometry.width - dpi(320))
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
-    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
-
-    mem_popup_wibox = awful.popup {
-        widget       = wibox.container.margin(grid, dpi(10), dpi(10), dpi(8), dpi(8)),
-        x            = px,
-        y            = py,
-        bg           = theme.bg_normal,
-        border_width = dpi(1),
-        border_color = theme.border_focus,
-        ontop        = true,
-        visible      = true,
-        screen       = s,
+    mem_popup = awful.popup {
+        widget = w, x = px, y = py,
+        bg = theme.bg_normal, border_width = dpi(1), border_color = theme.border_focus,
+        ontop = true, visible = true, screen = s,
+    }
+    local function refresh()
+        mem_fetch_procs(function(procs)
+            mem_proc_last = procs
+            local nw = mem_build_widget()
+            if nw and mem_popup then mem_popup.widget = nw end
+        end)
+    end
+    refresh()  -- fetch immediately on open
+    mem_popup_timer = gears.timer {
+        timeout = 2, autostart = true,
+        callback = refresh,
     }
 end
 local function mem_popup_hide()
-    if mem_popup_wibox then mem_popup_wibox.visible = false; mem_popup_wibox = nil end
+    if mem_popup_timer then mem_popup_timer:stop(); mem_popup_timer = nil end
+    if mem_popup then mem_popup.visible = false; mem_popup = nil end
+    mem_proc_last = {}
 end
 memicon:connect_signal("mouse::enter", mem_popup_show)
 mem.widget:connect_signal("mouse::enter", mem_popup_show)
@@ -449,70 +501,59 @@ local cpu = lain.widget.cpu({
     end
 })
 
-local cpu_popup_wibox = nil
-local function cpu_popup_show()
-    if cpu_popup_wibox then return end
-    local cores = cpu_now_last
-    if not cores or #cores == 0 then return end
+local cpu_popup       = nil
+local cpu_popup_timer = nil
 
+local function cpu_build_widget()
+    local cores = cpu_now_last
+    if not cores or #cores == 0 then return nil end
     local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(3) }
-    -- Lay cores out in two columns
     local i = 1
     while i <= #cores do
-        local left_label  = string.format("Core %-2d", i - 1)
-        local left_val    = string.format("%3d%%", cores[i].usage or 0)
-        local right_label = ""
-        local right_val   = ""
-        if cores[i + 1] then
-            right_label = string.format("Core %-2d", i)
-            right_val   = string.format("%3d%%", cores[i + 1].usage or 0)
-        end
+        local ll = string.format("Core %-2d", i - 1)
+        local lv = string.format("%3d%%", cores[i].usage or 0)
+        local rl = cores[i+1] and string.format("Core %-2d", i) or ""
+        local rv = cores[i+1] and string.format("%3d%%", cores[i+1].usage or 0) or ""
         rows:add(wibox.widget {
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", left_label .. "  "),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(70),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, left_val),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(40),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "   " .. right_label .. "  "),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(80),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, right_val),
-                widget = wibox.widget.textbox,
-            },
+            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", ll),
+              widget = wibox.widget.textbox, forced_width = dpi(70) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, lv),
+              widget = wibox.widget.textbox, forced_width = dpi(40) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "   " .. rl),
+              widget = wibox.widget.textbox, forced_width = dpi(80) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, rv),
+              widget = wibox.widget.textbox },
             layout = wibox.layout.fixed.horizontal,
         })
         i = i + 2
     end
+    return wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8))
+end
 
-    local popup_w = dpi(240)
+local function cpu_popup_show()
+    if cpu_popup then return end
+    local w = cpu_build_widget()
+    if not w then return end
     local s  = awful.screen.focused()
     local wb = s.mywibox
-    local mouse_x = mouse.coords().x
+    local px = math.min(mouse.coords().x, s.geometry.x + s.geometry.width - dpi(250))
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
-    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
-
-    cpu_popup_wibox = awful.popup {
-        widget       = wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
-        x            = px,
-        y            = py,
-        bg           = theme.bg_normal,
-        border_width = dpi(1),
-        border_color = theme.border_focus,
-        ontop        = true,
-        visible      = true,
-        screen       = s,
+    cpu_popup = awful.popup {
+        widget = w, x = px, y = py,
+        bg = theme.bg_normal, border_width = dpi(1), border_color = theme.border_focus,
+        ontop = true, visible = true, screen = s,
+    }
+    cpu_popup_timer = gears.timer {
+        timeout = 2, autostart = true,
+        callback = function()
+            local nw = cpu_build_widget()
+            if nw and cpu_popup then cpu_popup.widget = nw end
+        end,
     }
 end
 local function cpu_popup_hide()
-    if cpu_popup_wibox then cpu_popup_wibox.visible = false; cpu_popup_wibox = nil end
+    if cpu_popup_timer then cpu_popup_timer:stop(); cpu_popup_timer = nil end
+    if cpu_popup then cpu_popup.visible = false; cpu_popup = nil end
 end
 cpuicon:connect_signal("mouse::enter", cpu_popup_show)
 cpu.widget:connect_signal("mouse::enter", cpu_popup_show)
@@ -560,50 +601,49 @@ local _tempdir  = _tempfile and _tempfile:match("^(.+)/temp%d+_input$")
 local tempicon = wibox.widget.imagebox(theme.widget_temp)
 local temp = { widget = wibox.widget.textbox() }
 
-local temp_popup_wibox = nil
+local temp_popup       = nil
+local temp_popup_timer = nil
 local temp_popup_lines = {}   -- updated each watch tick
 
-local function temp_popup_show()
-    if temp_popup_wibox then return end
-    if #temp_popup_lines == 0 then return end
-
+local function temp_build_widget()
+    if #temp_popup_lines == 0 then return nil end
     local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
     for _, entry in ipairs(temp_popup_lines) do
         rows:add(wibox.widget {
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", entry.label),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(160),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, entry.value),
-                widget = wibox.widget.textbox,
-            },
+            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", entry.label),
+              widget = wibox.widget.textbox, forced_width = dpi(160) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, entry.value),
+              widget = wibox.widget.textbox },
             layout = wibox.layout.fixed.horizontal,
         })
     end
+    return wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8))
+end
 
-    local popup_w = dpi(260)
+local function temp_popup_show()
+    if temp_popup then return end
+    local w = temp_build_widget()
+    if not w then return end
     local s  = awful.screen.focused()
     local wb = s.mywibox
-    local mouse_x = mouse.coords().x
+    local px = math.min(mouse.coords().x, s.geometry.x + s.geometry.width - dpi(270))
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
-    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
-
-    temp_popup_wibox = awful.popup {
-        widget       = wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
-        x            = px,
-        y            = py,
-        bg           = theme.bg_normal,
-        border_width = dpi(1),
-        border_color = theme.border_focus,
-        ontop        = true,
-        visible      = true,
-        screen       = s,
+    temp_popup = awful.popup {
+        widget = w, x = px, y = py,
+        bg = theme.bg_normal, border_width = dpi(1), border_color = theme.border_focus,
+        ontop = true, visible = true, screen = s,
+    }
+    temp_popup_timer = gears.timer {
+        timeout = 5, autostart = true,
+        callback = function()
+            local nw = temp_build_widget()
+            if nw and temp_popup then temp_popup.widget = nw end
+        end,
     }
 end
 local function temp_popup_hide()
-    if temp_popup_wibox then temp_popup_wibox.visible = false; temp_popup_wibox = nil end
+    if temp_popup_timer then temp_popup_timer:stop(); temp_popup_timer = nil end
+    if temp_popup then temp_popup.visible = false; temp_popup = nil end
 end
 tempicon:connect_signal("mouse::enter", temp_popup_show)
 temp.widget:connect_signal("mouse::enter", temp_popup_show)
@@ -699,74 +739,63 @@ local net = lain.widget.net({
     end
 })
 
-local net_popup_wibox = nil
-local function net_popup_show()
-    if net_popup_wibox then return end
-    local n = net_now_last
-    if not n or not n.devices then return end
+local net_popup       = nil
+local net_popup_timer = nil
 
+local function net_build_widget()
+    local n = net_now_last
+    if not n or not n.devices then return nil end
     local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
     local devs = {}
     for dev in pairs(n.devices) do table.insert(devs, dev) end
     table.sort(devs)
-
     for _, dev in ipairs(devs) do
         local d = n.devices[dev]
-        local state = d.carrier == "1" and "up" or "down"
+        local state       = d.carrier == "1" and "up" or "down"
         local state_color = d.carrier == "1" and "#a6e3a1" or "#f38ba8"
         rows:add(wibox.widget {
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, "<b>" .. dev .. "</b>"),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(100),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "↓ "),
-                widget = wibox.widget.textbox,
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, string.format("%8s", d.received or "0")),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(80),
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "↑ "),
-                widget = wibox.widget.textbox,
-            },
-            {
-                markup = markup.fontfg(theme.font, theme.fg_normal, string.format("%8s", d.sent or "0")),
-                widget = wibox.widget.textbox,
-                forced_width = dpi(80),
-            },
-            {
-                markup = markup.fontfg(theme.font, state_color, "  " .. state),
-                widget = wibox.widget.textbox,
-            },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, "<b>" .. dev .. "</b>"),
+              widget = wibox.widget.textbox, forced_width = dpi(100) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "↓ "),
+              widget = wibox.widget.textbox },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, string.format("%8s", d.received or "0")),
+              widget = wibox.widget.textbox, forced_width = dpi(80) },
+            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", "↑ "),
+              widget = wibox.widget.textbox },
+            { markup = markup.fontfg(theme.font, theme.fg_normal, string.format("%8s", d.sent or "0")),
+              widget = wibox.widget.textbox, forced_width = dpi(80) },
+            { markup = markup.fontfg(theme.font, state_color, "  " .. state),
+              widget = wibox.widget.textbox },
             layout = wibox.layout.fixed.horizontal,
         })
     end
+    return wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8))
+end
 
-    local popup_w = dpi(360)
+local function net_popup_show()
+    if net_popup then return end
+    local w = net_build_widget()
+    if not w then return end
     local s  = awful.screen.focused()
     local wb = s.mywibox
-    local mouse_x = mouse.coords().x
+    local px = math.min(mouse.coords().x, s.geometry.x + s.geometry.width - dpi(370))
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
-    local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
-
-    net_popup_wibox = awful.popup {
-        widget       = wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
-        x            = px,
-        y            = py,
-        bg           = theme.bg_normal,
-        border_width = dpi(1),
-        border_color = theme.border_focus,
-        ontop        = true,
-        visible      = true,
-        screen       = s,
+    net_popup = awful.popup {
+        widget = w, x = px, y = py,
+        bg = theme.bg_normal, border_width = dpi(1), border_color = theme.border_focus,
+        ontop = true, visible = true, screen = s,
+    }
+    net_popup_timer = gears.timer {
+        timeout = 2, autostart = true,
+        callback = function()
+            local nw = net_build_widget()
+            if nw and net_popup then net_popup.widget = nw end
+        end,
     }
 end
 local function net_popup_hide()
-    if net_popup_wibox then net_popup_wibox.visible = false; net_popup_wibox = nil end
+    if net_popup_timer then net_popup_timer:stop(); net_popup_timer = nil end
+    if net_popup then net_popup.visible = false; net_popup = nil end
 end
 neticon:connect_signal("mouse::enter", net_popup_show)
 net.widget:connect_signal("mouse::enter", net_popup_show)

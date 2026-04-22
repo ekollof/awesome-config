@@ -471,44 +471,6 @@ local function mem_fetch_zfs(callback)
             end)
     end
 end
-            callback(procs)
-        end
-    )
-end
-
-local function mem_fetch_zfs(callback)
-    if not _zfs_available then callback(nil); return end
-    awful.spawn.easy_async_with_shell(
-        "cat " .. _zfs_arcstats,
-        function(out)
-            local t = {}
-            for key, val in out:gmatch("(%w+)%s+%d+%s+(%d+)") do
-                t[key] = tonumber(val)
-            end
-            if not t.size then callback(nil); return end
-            local function mb(v) return math.floor((v or 0) / 1048576) end
-            local hits   = (t.hits   or 0)
-            local misses = (t.misses or 0)
-            local total  = hits + misses
-            local hitratio = total > 0 and string.format("%.1f%%", hits / total * 100) or "n/a"
-            local compr = (t.uncompressed_size or 0) > 0
-                and string.format("%.2fx", t.uncompressed_size / t.compressed_size)
-                or "n/a"
-            callback({
-                size     = mb(t.size),
-                target   = mb(t.c),
-                max      = mb(t.c_max),
-                mru      = mb(t.mru_size),
-                mfu      = mb(t.mfu_size),
-                anon     = mb(t.anon_size),
-                meta     = mb(t.metadata_size),
-                hitratio = hitratio,
-                compr    = compr,
-                l2size   = mb(t.l2_size or 0),
-            })
-        end
-    )
-end
 
 local function mem_build_widget()
     local m = mem_now_last

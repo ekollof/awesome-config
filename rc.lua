@@ -1152,7 +1152,15 @@ end)
 
 -- Run a command only if it's not already running
 local function run_once(cmd)
-    awful.spawn.with_shell(string.format("pgrep -f %q > /dev/null || (%s &)", cmd:match("^%S+"), cmd))
+    local bin = cmd:match("^%S+")
+    awful.spawn.easy_async_with_shell(
+        string.format("pgrep -f %q", bin),
+        function(_, _, _, code)
+            if code ~= 0 then
+                awful.spawn.with_shell(cmd)
+            end
+        end
+    )
 end
 
 -- Autostart: defer until the event loop is running

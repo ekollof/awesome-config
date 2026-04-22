@@ -47,7 +47,7 @@ end
 
 local function update()
     get_ifaces(function(ifaces)
-        awful.spawn.easy_async_with_shell("netstat -ibn 2>/dev/null", function(out)
+        local function process(out)
             local raw = {}
 
             if _is_linux then
@@ -101,11 +101,18 @@ local function update()
             net.widget:set_markup(markup.fontfg(
                 beautiful.font, beautiful.fg_normal,
                 " " .. fmt(total_rx) .. "↓ " .. fmt(total_tx) .. "↑ "))
-        end)
+        end
+
+        if _is_linux then
+            -- sysfs reads are synchronous; no subprocess needed
+            process(nil)
+        else
+            awful.spawn.easy_async_with_shell("netstat -ibn 2>/dev/null", process)
+        end
     end)
 end
 
-gears.timer { timeout = _timeout, autostart = true, call_now = true, callback = update }
+local _timer = gears.timer { timeout = _timeout, autostart = true, call_now = true, callback = update }
 
 -- Popup ------------------------------------------------------------------
 

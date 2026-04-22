@@ -397,16 +397,115 @@ local mem = lain.widget.mem({
 local mem_popup       = nil
 local mem_popup_timer = nil
 local mem_proc_last   = {}   -- cached process list {name, mb}
+local mem_zfs_last    = nil  -- cached ZFS ARC stats table, or false if unavailable
 
-local function mem_fetch_procs(callback)
-    awful.spawn.easy_async_with_shell(
-        "ps -e -o rss,comm --sort=-rss 2>/dev/null | awk 'NR>1 && NR<=11 {printf \"%s %s\\n\", $1, $2}'",
-        function(out)
-            local procs = {}
-            for rss, name in out:gmatch("(%d+)%s+(%S+)") do
-                table.insert(procs, { name = name, mb = math.floor(tonumber(rss) / 1024) })
+local _zfs_arcstats  = "/proc/spl/kstat/zfs/arcstats"
+local _zfs_linux     = io.open(_zfs_arcstats, "r") and true or false
+local _zfs_freebsd   = (not _zfs_linux) and (io.popen("sysctl -n kstat.zfs.misc.arcstats.size 2>/dev/null"):read("*l") ~= nil)
+local _zfs_available = _zfs_linux or _zfs_freebsd
+
+-- Keys we want from arcstats (Linux procfs name == FreeBSD sysctl suffix)
+local _zfs_keys = {
+    "size", "c", "c_max",
+    "hits", "misses",
+    "mru_size", "mfu_size", "anon_size", "metadata_size",
+    "compressed_size", "uncompressed_size",
+    "l2_size", "l2_hits", "l2_misses",
+}
+
+local function mem_fetch_zfs(callback)
+    if not _zfs_available then callback(nil); return end
+
+    local function parse(t)
+        if not t.size then callback(nil); return end
+        local function mb(v) return math.floor((v or 0) / 1048576) end
+        local hits, misses = (t.hits or 0), (t.misses or 0)
+        local total = hits + misses
+        local hitratio = total > 0 and string.format("%.1f%%", hits / total * 100) or "n/a"
+        local compr = (t.uncompressed_size or 0) > 0
+            and string.format("%.2fx", t.uncompressed_size / t.compressed_size)
+            or "n/a"
+        local l2h, l2m = (t.l2_hits or 0), (t.l2_misses or 0)
+        local l2total = l2h + l2m
+        local l2ratio = l2total > 0 and string.format("%.1f%%", l2h / l2total * 100) or nil
+        callback({
+            size     = mb(t.size),
+            target   = mb(t.c),
+            max      = mb(t.c_max),
+            mru      = mb(t.mru_size),
+            mfu      = mb(t.mfu_size),
+            anon     = mb(t.anon_size),
+            meta     = mb(t.metadata_size),
+            hitratio = hitratio,
+            compr    = compr,
+            l2size   = mb(t.l2_size or 0),
+            l2ratio  = l2ratio,
+        })
+    end
+
+    if _zfs_linux then
+        awful.spawn.easy_async_with_shell("cat " .. _zfs_arcstats, function(out)
+            local t = {}
+            for key, val in out:gmatch("(%w+)%s+%d+%s+(%d+)") do t[key] = tonumber(val) end
+            parse(t)
+        end)
+    else
+        -- FreeBSD: read each key via sysctl in one shot
+        local keys_arg = table.concat((function()
+            local r = {}
+            for _, k in ipairs(_zfs_keys) do
+                table.insert(r, "kstat.zfs.misc.arcstats." .. k)
             end
+            return r
+        end)(), " ")
+        awful.spawn.easy_async_with_shell(
+            "sysctl -e " .. keys_arg .. " 2>/dev/null",
+            function(out)
+                local t = {}
+                for line in out:gmatch("[^\n]+") do
+                    -- sysctl -e output: kstat.zfs.misc.arcstats.size=12345
+                    local k, v = line:match("kstat%.zfs%.misc%.arcstats%.(%w+)=(%d+)")
+                    if k and v then t[k] = tonumber(v) end
+                end
+                parse(t)
+            end)
+    end
+end
             callback(procs)
+        end
+    )
+end
+
+local function mem_fetch_zfs(callback)
+    if not _zfs_available then callback(nil); return end
+    awful.spawn.easy_async_with_shell(
+        "cat " .. _zfs_arcstats,
+        function(out)
+            local t = {}
+            for key, val in out:gmatch("(%w+)%s+%d+%s+(%d+)") do
+                t[key] = tonumber(val)
+            end
+            if not t.size then callback(nil); return end
+            local function mb(v) return math.floor((v or 0) / 1048576) end
+            local hits   = (t.hits   or 0)
+            local misses = (t.misses or 0)
+            local total  = hits + misses
+            local hitratio = total > 0 and string.format("%.1f%%", hits / total * 100) or "n/a"
+            local compr = (t.uncompressed_size or 0) > 0
+                and string.format("%.2fx", t.uncompressed_size / t.compressed_size)
+                or "n/a"
+            callback({
+                size     = mb(t.size),
+                target   = mb(t.c),
+                max      = mb(t.c_max),
+                mru      = mb(t.mru_size),
+                mfu      = mb(t.mfu_size),
+                anon     = mb(t.anon_size),
+                meta     = mb(t.metadata_size),
+                hitratio = hitratio,
+                compr    = compr,
+                l2size   = mb(t.l2_size or 0),
+            })
         end
     )
 end
@@ -423,6 +522,12 @@ local function mem_build_widget()
             layout = wibox.layout.fixed.horizontal,
         }
     end
+    local function section(label)
+        return wibox.widget {
+            markup = markup.fontfg(theme.font, theme.fg_normal .. "88", label),
+            widget = wibox.widget.textbox,
+        }
+    end
 
     local stats = wibox.widget {
         row("RAM used",  string.format("%d MB / %d MB (%d%%)", m.used, m.total, m.perc)),
@@ -432,12 +537,44 @@ local function mem_build_widget()
         layout = wibox.layout.fixed.vertical, spacing = dpi(4),
     }
 
-    local sep = wibox.widget {
+    local layout = wibox.widget { stats, layout = wibox.layout.fixed.vertical, spacing = dpi(6) }
+
+    -- ZFS ARC section
+    if _zfs_available then
+        layout:add(wibox.widget {
+            markup = markup.fontfg(theme.font, theme.fg_normal .. "44", "─────────────────────────────"),
+            widget = wibox.widget.textbox,
+        })
+        if mem_zfs_last then
+            local z = mem_zfs_last
+            local zfs_rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
+            zfs_rows:add(section("🗄  ZFS ARC"))
+            zfs_rows:add(row("ARC size",    string.format("%d MB  (target %d MB, max %d MB)", z.size, z.target, z.max)))
+            zfs_rows:add(row("  MRU",       string.format("%d MB", z.mru)))
+            zfs_rows:add(row("  MFU",       string.format("%d MB", z.mfu)))
+            zfs_rows:add(row("  anon",      string.format("%d MB", z.anon)))
+            zfs_rows:add(row("  metadata",  string.format("%d MB", z.meta)))
+            zfs_rows:add(row("Hit ratio",   z.hitratio))
+            zfs_rows:add(row("Compression", z.compr))
+            if z.l2size > 0 then
+                zfs_rows:add(row("L2ARC",   string.format("%d MB", z.l2size)))
+            end
+            layout:add(zfs_rows)
+        else
+            layout:add(wibox.widget {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "66", "loading…"),
+                widget = wibox.widget.textbox,
+            })
+        end
+    end
+
+    -- Process list section
+    layout:add(wibox.widget {
         markup = markup.fontfg(theme.font, theme.fg_normal .. "44", "─────────────────────────────"),
         widget = wibox.widget.textbox,
-    }
-
+    })
     local proc_rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(2) }
+    proc_rows:add(section("📋  top processes"))
     if #mem_proc_last > 0 then
         for _, p in ipairs(mem_proc_last) do
             proc_rows:add(row(p.name, string.format("%d MB", p.mb), dpi(180)))
@@ -448,11 +585,9 @@ local function mem_build_widget()
             widget = wibox.widget.textbox,
         })
     end
+    layout:add(proc_rows)
 
-    return wibox.container.margin(wibox.widget {
-        stats, sep, proc_rows,
-        layout = wibox.layout.fixed.vertical, spacing = dpi(6),
-    }, dpi(10), dpi(10), dpi(8), dpi(8))
+    return wibox.container.margin(layout, dpi(10), dpi(10), dpi(8), dpi(8))
 end
 
 local function mem_popup_show()
@@ -469,11 +604,17 @@ local function mem_popup_show()
         ontop = true, visible = true, screen = s,
     }
     local function refresh()
-        mem_fetch_procs(function(procs)
-            mem_proc_last = procs
-            local nw = mem_build_widget()
-            if nw and mem_popup then mem_popup.widget = nw end
-        end)
+        -- fetch procs and ZFS in parallel; rebuild widget when both done
+        local pending = 2
+        local function done()
+            pending = pending - 1
+            if pending == 0 then
+                local nw = mem_build_widget()
+                if nw and mem_popup then mem_popup.widget = nw end
+            end
+        end
+        mem_fetch_procs(function(procs) mem_proc_last = procs; done() end)
+        mem_fetch_zfs(function(zfs)    mem_zfs_last  = zfs;   done() end)
     end
     refresh()  -- fetch immediately on open
     mem_popup_timer = gears.timer {
@@ -485,6 +626,7 @@ local function mem_popup_hide()
     if mem_popup_timer then mem_popup_timer:stop(); mem_popup_timer = nil end
     if mem_popup then mem_popup.visible = false; mem_popup = nil end
     mem_proc_last = {}
+    mem_zfs_last  = nil
 end
 memicon:connect_signal("mouse::enter", mem_popup_show)
 mem.widget:connect_signal("mouse::enter", mem_popup_show)
@@ -572,31 +714,29 @@ end)
 --]]
 -- Coretemp — portable sensor detection
 -- Searches hwmon by driver name on Linux, falls back to sysctl on BSD
-local function find_tempfile()
-    local preferred = { "zenpower", "k10temp", "coretemp", "cpu_thermal" }
-    for _, name in ipairs(preferred) do
+local function find_hwmon_dir(drivers)
+    for _, name in ipairs(drivers) do
         local iter = io.popen("grep -rl '^" .. name .. "$' /sys/class/hwmon/*/name 2>/dev/null | head -1")
         if iter then
             local namefile = iter:read("*l"); iter:close()
             if namefile then
                 local dir = namefile:match("^(.+)/name$")
-                local t = dir .. "/temp1_input"
-                local tf = io.open(t, "r")
-                if tf then tf:close(); return t end
+                if dir then return dir, name end
             end
         end
     end
-    -- fallback: first hwmon temp1_input found
-    local iter = io.popen("ls /sys/class/hwmon/hwmon*/temp1_input 2>/dev/null | head -1")
-    if iter then
-        local t = iter:read("*l"); iter:close()
-        if t then return t end
-    end
-    return nil
+    return nil, nil
 end
 
-local _tempfile = find_tempfile()
-local _tempdir  = _tempfile and _tempfile:match("^(.+)/temp%d+_input$")
+local _tempdir,  _cputempdriver  = find_hwmon_dir({ "zenpower", "k10temp", "coretemp", "cpu_thermal" })
+local _tempfile  = _tempdir and _tempdir .. "/temp1_input"
+-- validate
+if _tempfile then
+    local tf = io.open(_tempfile, "r")
+    if tf then tf:close() else _tempfile = nil; _tempdir = nil end
+end
+
+local _gputempdir, _gputempdriver = find_hwmon_dir({ "amdgpu", "nvidia", "nouveau", "radeon" })
 
 local tempicon = wibox.widget.imagebox(theme.widget_temp)
 local temp = { widget = wibox.widget.textbox() }
@@ -609,13 +749,20 @@ local function temp_build_widget()
     if #temp_popup_lines == 0 then return nil end
     local rows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
     for _, entry in ipairs(temp_popup_lines) do
-        rows:add(wibox.widget {
-            { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", entry.label),
-              widget = wibox.widget.textbox, forced_width = dpi(160) },
-            { markup = markup.fontfg(theme.font, theme.fg_normal, entry.value),
-              widget = wibox.widget.textbox },
-            layout = wibox.layout.fixed.horizontal,
-        })
+        if entry.section then
+            rows:add(wibox.widget {
+                markup = markup.fontfg(theme.font, theme.fg_normal .. "88", entry.label),
+                widget = wibox.widget.textbox,
+            })
+        else
+            rows:add(wibox.widget {
+                { markup = markup.fontfg(theme.font, theme.fg_normal .. "99", entry.label),
+                  widget = wibox.widget.textbox, forced_width = dpi(160) },
+                { markup = markup.fontfg(theme.font, theme.fg_normal, entry.value),
+                  widget = wibox.widget.textbox },
+                layout = wibox.layout.fixed.horizontal,
+            })
+        end
     end
     return wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8))
 end
@@ -656,23 +803,41 @@ if _tempfile then
         local val = tonumber(stdout:match("%d+"))
         local deg = val and string.format("%.0f", val / 1e3) or "?"
         widget:set_markup(markup.font(theme.font, " " .. deg .. "°C "))
-        -- Build popup data from all temp nodes in the same hwmon dir
-        if _tempdir then
+
+        -- helper: read all temp*_input entries from a hwmon dir into a list
+        local function read_hwmon_temps(dir, section_label, dest, on_done)
             awful.spawn.easy_async_with_shell(
-                string.format("for f in %s/temp*_input; do label=%s/$(basename $f _input)_label; echo \"$(cat $label 2>/dev/null || basename $f _input): $(cat $f)\"; done", _tempdir, _tempdir),
+                string.format(
+                    "for f in %s/temp*_input; do label=%s/$(basename $f _input)_label;" ..
+                    " echo \"$(cat $label 2>/dev/null || basename $f _input): $(cat $f)\"; done",
+                    dir, dir),
                 function(out)
-                    temp_popup_lines = {}
+                    table.insert(dest, { label = section_label, value = "", section = true })
                     for line in out:gmatch("[^\n]+") do
                         local label, raw = line:match("^(.+): (%d+)$")
                         if label and raw then
-                            table.insert(temp_popup_lines, {
+                            table.insert(dest, {
                                 label = label,
                                 value = string.format("%.1f°C", tonumber(raw) / 1e3),
                             })
                         end
                     end
+                    on_done()
                 end)
         end
+
+        local lines = {}
+        read_hwmon_temps(_tempdir, "🖥  CPU (" .. (_cputempdriver or "cpu") .. ")", lines,
+            function()
+                if _gputempdir then
+                    read_hwmon_temps(_gputempdir, "🎮  GPU (" .. (_gputempdriver or "gpu") .. ")", lines,
+                        function()
+                            temp_popup_lines = lines
+                        end)
+                else
+                    temp_popup_lines = lines
+                end
+            end)
     end, temp.widget)
 else
     -- BSD: read via sysctl

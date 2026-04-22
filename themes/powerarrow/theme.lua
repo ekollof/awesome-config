@@ -419,8 +419,8 @@ local function mem_popup_show()
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
     local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
 
-    mem_popup_wibox = wibox {
-        width        = popup_w,
+    mem_popup_wibox = awful.popup {
+        widget       = wibox.container.margin(grid, dpi(10), dpi(10), dpi(8), dpi(8)),
         x            = px,
         y            = py,
         bg           = theme.bg_normal,
@@ -429,10 +429,6 @@ local function mem_popup_show()
         ontop        = true,
         visible      = true,
         screen       = s,
-    }
-    mem_popup_wibox:setup {
-        wibox.container.margin(grid, dpi(10), dpi(10), dpi(8), dpi(8)),
-        widget = wibox.container.background,
     }
 end
 local function mem_popup_hide()
@@ -503,8 +499,8 @@ local function cpu_popup_show()
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
     local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
 
-    cpu_popup_wibox = wibox {
-        width        = popup_w,
+    cpu_popup_wibox = awful.popup {
+        widget       = wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
         x            = px,
         y            = py,
         bg           = theme.bg_normal,
@@ -513,10 +509,6 @@ local function cpu_popup_show()
         ontop        = true,
         visible      = true,
         screen       = s,
-    }
-    cpu_popup_wibox:setup {
-        wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
-        widget = wibox.container.background,
     }
 end
 local function cpu_popup_hide()
@@ -598,8 +590,8 @@ local function temp_popup_show()
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
     local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
 
-    temp_popup_wibox = wibox {
-        width        = popup_w,
+    temp_popup_wibox = awful.popup {
+        widget       = wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
         x            = px,
         y            = py,
         bg           = theme.bg_normal,
@@ -608,10 +600,6 @@ local function temp_popup_show()
         ontop        = true,
         visible      = true,
         screen       = s,
-    }
-    temp_popup_wibox:setup {
-        wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
-        widget = wibox.container.background,
     }
 end
 local function temp_popup_hide()
@@ -765,8 +753,8 @@ local function net_popup_show()
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
     local px = math.min(mouse_x, s.geometry.x + s.geometry.width - popup_w - dpi(8))
 
-    net_popup_wibox = wibox {
-        width        = popup_w,
+    net_popup_wibox = awful.popup {
+        widget       = wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
         x            = px,
         y            = py,
         bg           = theme.bg_normal,
@@ -775,10 +763,6 @@ local function net_popup_show()
         ontop        = true,
         visible      = true,
         screen       = s,
-    }
-    net_popup_wibox:setup {
-        wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8)),
-        widget = wibox.container.background,
     }
 end
 local function net_popup_hide()

@@ -472,6 +472,19 @@ local function mem_fetch_zfs(callback)
     end
 end
 
+local function mem_fetch_procs(callback)
+    awful.spawn.easy_async_with_shell(
+        "ps -e -o rss,comm --sort=-rss 2>/dev/null | awk 'NR>1 && NR<=11 {printf \"%s %s\\n\", $1, $2}'",
+        function(out)
+            local procs = {}
+            for rss, name in out:gmatch("(%d+)%s+(%S+)") do
+                table.insert(procs, { name = name, mb = math.floor(tonumber(rss) / 1024) })
+            end
+            callback(procs)
+        end
+    )
+end
+
 local function mem_build_widget()
     local m = mem_now_last
     if not m or not m.total then return nil end

@@ -129,9 +129,9 @@ local modkey1 = "Control"
 
 -- personal variables
 --change these variables if you want
-local browser1 = "chromium"
-local browser2 = "chromium"
-local browser3 = "chromium"
+local browser1 = "brave"
+local browser2 = "brave"
+local browser3 = "brave"
 local editor = os.getenv("EDITOR") or "nano"
 local filemanager = "thunar"
 local mediaplayer = "ncmpcpp"

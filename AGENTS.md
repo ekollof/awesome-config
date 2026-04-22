@@ -76,6 +76,17 @@ supports prev/toggle/next/stop clicks and scroll-to-change-volume.
 AwesomeWM global) after package operations to refresh the update count
 without waiting for the next 5-minute poll.
 
+## Portability
+
+Shell commands in widgets must be portable to **Linux, FreeBSD, and OpenBSD**.
+Avoid GNU-specific flags and tools. Prefer POSIX equivalents:
+
+- Use `ps -axo rss,comm | sort -rn` — not `ps --sort=` or `-e`
+- Use POSIX `awk` — `printf`, field splitting, and arithmetic are fine; avoid GNU extensions
+- Use `sysctl` for BSD kernel stats; guard Linux-only paths (e.g. `/proc/`) with an OS check
+- ZFS ARC: `/proc/spl/kstat/zfs/arcstats` on Linux; `sysctl kstat.zfs.misc.arcstats.*` on FreeBSD
+- Detect OS at startup with `io.open` path probing or a single `uname` call; avoid repeated branching
+
 ## Agent guidelines
 
 - **Do not** call `~/bin/autostart` directly — it spawns all autostart apps

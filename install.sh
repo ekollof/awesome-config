@@ -35,10 +35,13 @@ if [[ -f /etc/os-release ]]; then
         arch|cachyos|endeavouros|garuda) OS=arch ;;
         debian)                          OS=debian ;;
         ubuntu|linuxmint|pop)            OS=ubuntu ;;
+        fedora|rhel|centos)              OS=fedora ;;
+        alpine)                          OS=alpine ;;
         *)
             case "${ID_LIKE:-}" in
-                *arch*)          OS=arch ;;
+                *arch*)            OS=arch ;;
                 *debian*|*ubuntu*) OS=ubuntu ;;
+                *fedora*|*rhel*)   OS=fedora ;;
             esac
             ;;
     esac
@@ -106,6 +109,26 @@ pkg_install_freebsd() {
     run sudo pkg install -y "${missing[@]}"
 }
 
+pkg_install_dnf() {
+    local missing=()
+    for p in "$@"; do
+        rpm -q "$p" &>/dev/null || missing+=("$p")
+    done
+    [[ ${#missing[@]} -eq 0 ]] && return
+    info "dnf install ${missing[*]}"
+    run sudo dnf install -y "${missing[@]}"
+}
+
+pkg_install_apk() {
+    local missing=()
+    for p in "$@"; do
+        apk info -e "$p" &>/dev/null || missing+=("$p")
+    done
+    [[ ${#missing[@]} -eq 0 ]] && return
+    info "apk add ${missing[*]}"
+    run sudo apk add "${missing[@]}"
+}
+
 pkg_install_openbsd() {
     # pkg_info -q returns 0 if installed
     local missing=()
@@ -118,9 +141,9 @@ pkg_install_openbsd() {
 }
 
 install_pkgs() {
-    # install_pkgs arch_pkg... --- apt_pkg... --- freebsd_pkg... --- openbsd_pkg...
+    # install_pkgs arch_pkg... --- apt_pkg... --- freebsd_pkg... --- openbsd_pkg... --- fedora_pkg... --- alpine_pkg...
     # Use "SKIP" as a placeholder for a section if not applicable
-    local arch=() apt=() freebsd=() openbsd=()
+    local arch=() apt=() freebsd=() openbsd=() fedora=() alpine=()
     local section=0
     for arg in "$@"; do
         if [[ "$arg" == "---" ]]; then
@@ -131,6 +154,8 @@ install_pkgs() {
                 1) apt+=("$arg") ;;
                 2) freebsd+=("$arg") ;;
                 3) openbsd+=("$arg") ;;
+                4) fedora+=("$arg") ;;
+                5) alpine+=("$arg") ;;
             esac
         fi
     done
@@ -143,6 +168,10 @@ install_pkgs() {
             [[ ${#freebsd[@]} -gt 0 && "${freebsd[0]}" != "SKIP" ]] && pkg_install_freebsd "${freebsd[@]}" ;;
         openbsd)
             [[ ${#openbsd[@]} -gt 0 && "${openbsd[0]}" != "SKIP" ]] && pkg_install_openbsd "${openbsd[@]}" ;;
+        fedora)
+            [[ ${#fedora[@]} -gt 0 && "${fedora[0]}" != "SKIP" ]] && pkg_install_dnf "${fedora[@]}" ;;
+        alpine)
+            [[ ${#alpine[@]} -gt 0 && "${alpine[0]}" != "SKIP" ]] && pkg_install_apk "${alpine[@]}" ;;
     esac
 }
 
@@ -165,6 +194,8 @@ install_pkgs \
     awesome --- \
     awesome --- \
     x11/awesome --- \
+    awesome --- \
+    awesome --- \
     awesome
 
 # Compositor
@@ -172,6 +203,8 @@ install_pkgs \
     picom --- \
     picom --- \
     x11/picom --- \
+    picom --- \
+    picom --- \
     picom
 
 # Terminal
@@ -179,6 +212,8 @@ install_pkgs \
     kitty --- \
     kitty --- \
     x11/kitty --- \
+    kitty --- \
+    kitty --- \
     kitty
 
 # Audio
@@ -186,20 +221,35 @@ install_pkgs \
     alsa-utils libpulse pavucontrol --- \
     alsa-utils libpulse-dev pavucontrol --- \
     audio/alsa-utils audio/pavucontrol --- \
-    alsa-utils pavucontrol
+    alsa-utils pavucontrol --- \
+    alsa-utils pulseaudio-libs pavucontrol --- \
+    alsa-utils pulseaudio pavucontrol
 
 # MPD stack
+# Note: on Fedora, mpd is not in the default repos — enable RPM Fusion first:
+#   sudo dnf install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 install_pkgs \
     mpd mpc ncmpcpp --- \
     mpd mpc ncmpcpp --- \
     audio/mpd audio/mpc audio/ncmpcpp --- \
+    mpd mpc ncmpcpp --- \
+    mpd mpc ncmpcpp --- \
     mpd mpc ncmpcpp
+
+if [[ "$OS" == "fedora" ]]; then
+    if ! rpm -q mpd &>/dev/null; then
+        warn "mpd is not in Fedora's default repos. Enable RPM Fusion free and re-run:"
+        warn "  sudo dnf install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
+    fi
+fi
 
 # File manager
 install_pkgs \
     thunar --- \
     thunar --- \
     x11/thunar --- \
+    thunar --- \
+    thunar --- \
     thunar
 
 # Launchers
@@ -207,34 +257,45 @@ install_pkgs \
     rofi dmenu --- \
     rofi dmenu --- \
     x11/rofi x11/dmenu --- \
+    rofi dmenu --- \
+    rofi dmenu --- \
     rofi dmenu
 
 # Xfce utilities
 install_pkgs \
-    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings-manager --- \
+    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings --- \
     xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings --- \
     x11/xfce4-terminal x11/xfce4-taskmanager x11/xfce4-appfinder x11/xfce4-screenshooter x11/xfce4-settings-manager --- \
-    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings-manager
+    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings-manager --- \
+    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings --- \
+    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings
 
 # X11 utilities
 install_pkgs \
     xorg-xkill xorg-xbacklight xorg-xprop xorg-xev --- \
     x11-utils x11-xserver-utils --- \
     x11/xkill x11/xbacklight x11/xprop x11/xev --- \
-    xkill xbacklight xprop xev
+    xkill xbacklight xprop xev --- \
+    xkill xbacklight xprop xev --- \
+    xkill xbacklight xprop
 
 # System utilities
+# Note: 'unclutter' is replaced by 'unclutter-xfixes' on Fedora and Alpine
 install_pkgs \
     scrot unclutter curl arandr --- \
     scrot unclutter curl arandr --- \
     graphics/scrot x11/unclutter ftp/curl x11/arandr --- \
-    scrot unclutter curl arandr
+    scrot unclutter curl arandr --- \
+    scrot unclutter-xfixes curl arandr --- \
+    scrot unclutter-xfixes curl arandr
 
 # Password manager
 install_pkgs \
     pass --- \
     pass --- \
     security/pass --- \
+    pass --- \
+    pass --- \
     pass
 
 # Lua GObject introspection (for in-memory cover art decode)
@@ -242,6 +303,8 @@ install_pkgs \
     lua-lgi --- \
     lua-lgi --- \
     devel/lua-lgi --- \
+    lua-lgi --- \
+    lua-lgi --- \
     lua-lgi
 
 # xss-lock — hooks xscreensaver idle timer to run the lock script
@@ -249,6 +312,8 @@ install_pkgs \
     xss-lock --- \
     xss-lock --- \
     SKIP --- \
+    SKIP --- \
+    xss-lock --- \
     SKIP
 
 # ── i3lock-color (screen locker) ───────────────────────────────────────────────
@@ -272,9 +337,18 @@ else
                 bash "$REPO_DIR/scripts/build-i3lock-color.sh"
             fi
             ;;
-        freebsd|openbsd)
+        freebsd|openbsd|alpine)
             warn "i3lock-color: no package available for $OS — build manually from source."
             warn "  See: https://github.com/Raymo111/i3lock-color"
+            ;;
+        fedora)
+            # Not in default Fedora repos — build from source using the bundled script.
+            info "i3lock-color not found. Building from source..."
+            if [[ $DRY_RUN -eq 1 ]]; then
+                printf '    (dry) bash %s/scripts/build-i3lock-color.sh\n' "$REPO_DIR"
+            else
+                bash "$REPO_DIR/scripts/build-i3lock-color.sh"
+            fi
             ;;
     esac
 fi

@@ -302,6 +302,31 @@ screen.connect_signal("arrange", function(s)
 		end
 	end
 end)
+
+-- In max layout, minimize unfocused tiled clients (like DWM) so their
+-- transparency doesn't bleed through the focused window.
+-- We tag auto-minimized clients so we don't accidentally restore ones the
+-- user minimized intentionally.
+local function max_layout_minimize(s)
+	local layout = awful.layout.get(s)
+	local is_max = (layout == awful.layout.suit.max or
+	                layout == awful.layout.suit.max.fullscreen)
+	local focused = client.focus
+	for _, c in ipairs(s.clients) do
+		if not c.floating then
+			if is_max and c ~= focused then
+				if not c.minimized then
+					c.minimized = true
+					c._max_auto_minimized = true
+				end
+			elseif c._max_auto_minimized then
+				c.minimized = false
+				c._max_auto_minimized = false
+			end
+		end
+	end
+end
+screen.connect_signal("arrange", max_layout_minimize)
 -- Create a wibox for each screen and add it
 awful.screen.connect_for_each_screen(function(s) beautiful.at_screen_connect(s)
  end)
@@ -502,9 +527,56 @@ globalkeys = my_table.join(
 	awful.key({ modkey }, "Right", awful.tag.viewnext, { description = "view next", group = "tag" }),
 	awful.key({ altkey }, "Escape", awful.tag.history.restore, { description = "go back", group = "tag" }),
 
-	-- Tag browsing alt + tab
-	awful.key({ altkey }, "Tab", awful.tag.viewnext, { description = "view next", group = "tag" }),
-	awful.key({ altkey, "Shift" }, "Tab", awful.tag.viewprev, { description = "view previous", group = "tag" }),
+	-- Alt+Tab / Shift+Alt+Tab: cycle clients on the current tag by LRU order
+	-- Forward (Alt+Tab) focuses the next-most-recently-used client.
+	-- Backward (Shift+Alt+Tab) focuses the least-recently-used client.
+	awful.key({ altkey }, "Tab", function()
+		local s = awful.screen.focused()
+		local t = s.selected_tag
+		if not t then return end
+		local clients, seen = {}, {}
+		for _, c in ipairs(awful.client.focus.history.list) do
+			if not c.minimized and c.screen == s then
+				for _, ct in ipairs(c:tags()) do
+					if ct == t and not seen[c] then
+						seen[c] = true
+						clients[#clients + 1] = c
+					end
+				end
+			end
+		end
+		for _, c in ipairs(t:clients()) do
+			if not c.minimized and not seen[c] then
+				clients[#clients + 1] = c
+			end
+		end
+		if #clients < 2 then return end
+		clients[2]:emit_signal("request::activate", "key.unminimize", { raise = true })
+	end, { description = "focus next client by LRU", group = "client" }),
+
+	awful.key({ altkey, "Shift" }, "Tab", function()
+		local s = awful.screen.focused()
+		local t = s.selected_tag
+		if not t then return end
+		local clients, seen = {}, {}
+		for _, c in ipairs(awful.client.focus.history.list) do
+			if not c.minimized and c.screen == s then
+				for _, ct in ipairs(c:tags()) do
+					if ct == t and not seen[c] then
+						seen[c] = true
+						clients[#clients + 1] = c
+					end
+				end
+			end
+		end
+		for _, c in ipairs(t:clients()) do
+			if not c.minimized and not seen[c] then
+				clients[#clients + 1] = c
+			end
+		end
+		if #clients < 2 then return end
+		clients[#clients]:emit_signal("request::activate", "key.unminimize", { raise = true })
+	end, { description = "focus previous client by LRU", group = "client" }),
 
 	-- Tag browsing modkey + tab
 	awful.key({ modkey }, "Tab", awful.tag.viewnext, { description = "view next", group = "tag" }),
@@ -700,24 +772,24 @@ globalkeys = my_table.join(
 	--awful.key({ modkey1 }, "Up",
 	awful.key({}, "XF86AudioRaiseVolume", function()
 		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ +1%")
-		beautiful.volume.update()
+		beautiful.volume_notify()
 	end),
 	--awful.key({ modkey1 }, "Down",
 	awful.key({}, "XF86AudioLowerVolume", function()
 		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ -1%")
-		beautiful.volume.update()
+		beautiful.volume_notify()
 	end),
 	awful.key({}, "XF86AudioMute", function()
 		awful.spawn.with_shell("pactl set-sink-mute @DEFAULT_SINK@ toggle")
-		beautiful.volume.update()
+		beautiful.volume_notify()
 	end),
 	awful.key({ modkey1, "Shift" }, "m", function()
 		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ 100%")
-		beautiful.volume.update()
+		beautiful.volume_notify()
 	end),
 	awful.key({ modkey1, "Shift" }, "0", function()
 		awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ 0%")
-		beautiful.volume.update()
+		beautiful.volume_notify()
 	end),
 
 	--Media keys supported by vlc, spotify, audacious, xmm2, ...
@@ -815,6 +887,20 @@ clientkeys = my_table.join(
 	awful.key({ modkey, "Control" }, "Return", function(c)
 		c:swap(awful.client.getmaster())
 	end, { description = "move to master", group = "client" }),
+
+	-- Reset window to default tiled state (clears maximized, fullscreen, floating, ontop, sticky)
+	awful.key({ modkey }, "F5", function(c)
+		c.maximized            = false
+		c.maximized_horizontal = false
+		c.maximized_vertical   = false
+		c.fullscreen           = false
+		c.floating             = false
+		c.ontop                = false
+		c.sticky               = false
+		c.minimized            = false
+		c._max_auto_minimized  = false
+		c:raise()
+	end, { description = "reset window to default tiled state", group = "client" }),
 	awful.key({ modkey, "Shift" }, "Left", function(c)
 		c:move_to_screen()
 	end, { description = "move to screen", group = "client" }),
@@ -909,6 +995,16 @@ globalkeys = my_table.join(
 	awful.key({ "Control", "Mod1", "Shift" }, "w",
 		function() awful.spawn.with_shell("~/bin/wallpaper -R") end,
 		{ description = "reload current wallpaper", group = "wallpaper" })
+)
+
+-- Screen lock (Ctrl+Alt+L)
+globalkeys = my_table.join(
+	globalkeys,
+	awful.key({ "Control", "Mod1" }, "l",
+		function()
+			awful.spawn.with_shell(os.getenv("HOME") .. "/.config/awesome/scripts/lock.sh")
+		end,
+		{ description = "lock screen", group = "awesome" })
 )
 
 -- Set keys
@@ -1149,9 +1245,27 @@ end)
 
 client.connect_signal("focus", function(c)
 	c.border_color = beautiful.border_focus
+	-- In max layout, unminimize this client if we auto-minimized it.
+	if c._max_auto_minimized then
+		c.minimized = false
+		c._max_auto_minimized = false
+	end
 end)
 client.connect_signal("unfocus", function(c)
 	c.border_color = beautiful.border_normal
+end)
+
+-- Notify when a client becomes urgent, but only if it isn't already focused.
+client.connect_signal("property::urgent", function(c)
+	if c.urgent and c ~= client.focus then
+		naughty.notify({
+			title   = "Needs attention",
+			text    = (c.class or "A window") .. (c.name and (": " .. c.name) or ""),
+			timeout = 8,
+			screen  = c.screen,
+			icon    = c.icon,
+		})
+	end
 end)
 
 -- }}}
@@ -1184,4 +1298,11 @@ awful.spawn.easy_async_with_shell("true", function()
     end)
 
     run_once("picom -b --config " .. os.getenv("HOME") .. "/.config/awesome/picom.conf")
+
+    -- Screen locker: kill any existing xss-lock (e.g. from a previous awesome
+    -- restart) then relaunch so it always uses the current lock.sh.
+    local lock_script = os.getenv("HOME") .. "/.config/awesome/scripts/lock.sh"
+    awful.spawn.easy_async_with_shell("pkill -x xss-lock; sleep 0.2", function()
+        awful.spawn.with_shell("xss-lock --transfer-sleep-lock -- " .. lock_script)
+    end)
 end)

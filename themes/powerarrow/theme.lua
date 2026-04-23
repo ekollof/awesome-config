@@ -11,8 +11,10 @@ local awful   = require("awful")
 local wibox   = require("wibox")
 local naughty = require("naughty")
 local beautiful = require("beautiful")
-local pacman  = require("pacmanwidget")
-pacman_widget_hook = function() pacman.hook() end  -- global for pacman hook
+local updates = require("updatewidget")
+-- update_widget_hook is a global called by the pacman alpm hook on Arch.
+-- It is harmless on other distros (no hook fires, the function just never runs).
+update_widget_hook = function() updates.hook() end
 local weather_api = require("awesome-wm-widgets.weather-api-widget.weather")
 local dpi     = require("beautiful.xresources").apply_dpi
 
@@ -126,8 +128,9 @@ local spr = wibox.widget.textbox(" ")
 local clock = wibox.widget.textclock(
     markup.font(theme.font, " %a %d %b  %H:%M "))
 
--- Pacman updates widget
-local pacman_widget = pacman.create()
+-- Package updates widget (Arch: checkupdates+yay; Ubuntu/Mint: apt)
+-- Returns nil on unsupported distros so the wibar slot is simply omitted.
+local pacman_widget = updates.distro ~= "unknown" and updates.create() or nil
 
 -- Calendar (attach to clock)
 theme.cal = lain.widget.cal({
@@ -140,10 +143,70 @@ theme.cal = lain.widget.cal({
 })
 
 -- ALSA volume
+local volicon = wibox.widget.imagebox(theme.widget_vol)
 theme.volume = lain.widget.alsabar({
     --togglechannel = "IEC958,3",
     notification_preset = { font = font10, fg = theme.fg_normal },
+    settings = function()
+        if volume_now.status == "off" then
+            volicon:set_image(theme.widget_vol_mute)
+        elseif volume_now.level == 0 then
+            volicon:set_image(theme.widget_vol_no)
+        elseif volume_now.level <= 33 then
+            volicon:set_image(theme.widget_vol_low)
+        else
+            volicon:set_image(theme.widget_vol)
+        end
+    end,
 })
+
+-- Volume notification with progress bar.
+-- Reuses a single notification handle so rapid scrolling updates it in-place
+-- rather than stacking multiple notifications.
+local vol_notif = nil
+local VOL_BAR_WIDTH = 20  -- characters wide
+
+theme.volume_notify = function()
+    theme.volume.update(function()
+        local level  = theme.volume._current_level or 0
+        local muted  = theme.volume._playback == "off"
+        local filled = math.floor(level / 100 * VOL_BAR_WIDTH + 0.5)
+        local bar    = string.rep("█", filled) .. string.rep("░", VOL_BAR_WIDTH - filled)
+        local title  = muted
+            and string.format("󰝟  Volume: %d%% [muted]", level)
+            or  string.format("󰕾  Volume: %d%%", level)
+        local text   = bar
+
+        if vol_notif then
+            naughty.replace_text(vol_notif, title, text)
+        else
+            vol_notif = naughty.notify({
+                title   = title,
+                text    = text,
+                timeout = 2,
+                screen  = awful.screen.focused(),
+                preset  = theme.volume.notification_preset,
+                destroy = function() vol_notif = nil end,
+            })
+        end
+    end)
+end
+
+-- Scroll wheel on the volume bar: adjust volume and show notification
+theme.volume.bar:buttons(my_table.join(
+    awful.button({}, 4, function()  -- scroll up → raise
+        awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ +2%")
+        theme.volume_notify()
+    end),
+    awful.button({}, 5, function()  -- scroll down → lower
+        awful.spawn.with_shell("pactl set-sink-volume @DEFAULT_SINK@ -2%")
+        theme.volume_notify()
+    end),
+    awful.button({}, 1, function()  -- left click → toggle mute
+        awful.spawn.with_shell("pactl set-sink-mute @DEFAULT_SINK@ toggle")
+        theme.volume_notify()
+    end)
+))
 
 -- MPD
 local mpd_widget = require("widgets.mpd")({ color_artist = wc.color1 or "#FF8466", color_paused = wc.color4 or "#aaaaaa", modkey = modkey })
@@ -256,13 +319,14 @@ awful.spawn.easy_async_with_shell(
 )
 
 -- Powerline segment colors (sourced from wallust palette)
-local seg1 = wc.color0  or "#343434"
-local seg2 = wc.color2  or "#777E76"
-local seg3 = wc.color4  or "#4B696D"
-local seg4 = wc.color5  or "#4B3B51"
-local seg5 = wc.color1  or "#CB755B"
-local seg6 = wc.color6  or "#8DAA9A"
-local seg7 = wc.color3  or "#C0C0A2"
+local seg1    = wc.color0  or "#343434"
+local seg2    = wc.color2  or "#777E76"
+local seg3    = wc.color4  or "#4B696D"
+local seg4    = wc.color5  or "#4B3B51"
+local seg5    = wc.color1  or "#CB755B"
+local seg6    = wc.color6  or "#8DAA9A"
+local seg7    = wc.color3  or "#C0C0A2"
+local seg_vol = wc.color8  or "#606060"  -- distinct segment for volume widget
 
 -- Separators
 local arrow = separators.arrow_left
@@ -339,8 +403,8 @@ function theme.at_screen_connect(s)
             wibox.container.margin(s.systray, dpi(4), dpi(4), dpi(2), dpi(2)),
             -- using separators
             arrow(theme.bg_normal, seg1),
-            wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(6)), seg1),
-            arrow(seg1, theme.bg_normal),
+            pacman_widget and wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(6)), seg1) or nil,
+            pacman_widget and arrow(seg1, theme.bg_normal) or nil,
             mpdwidget,
             arrow(theme.bg_normal, seg2),
             wibox.container.background(wibox.container.margin(wibox.widget { memicon, mem_widget.widget, layout = wibox.layout.align.horizontal }, dpi(2), dpi(3)), seg2),
@@ -360,9 +424,15 @@ function theme.at_screen_connect(s)
                  if weather_args then populate_weather_containers() end
                  return wibox.container.background(wibox.container.margin(c, dpi(2), dpi(2)), seg5)
              end)(),
-             has_battery and arrow(seg5, seg6) or arrow(seg5, seg7),
+             has_battery and arrow(seg5, seg6) or arrow(seg5, seg_vol),
              has_battery and wibox.container.background(wibox.container.margin(wibox.widget { baticon, bat and bat.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg6) or nil,
-             has_battery and arrow(seg6, seg7) or nil,
+             has_battery and arrow(seg6, seg_vol) or nil,
+             wibox.container.background(wibox.container.margin(wibox.widget {
+                 volicon,
+                 wibox.container.constraint(theme.volume.bar, "exact", dpi(50), dpi(10)),
+                 layout = wibox.layout.fixed.horizontal,
+             }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
+             arrow(seg_vol, seg7),
             wibox.container.background(wibox.container.margin(wibox.widget { nil, neticon, net_widget.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
             arrow(seg7, seg2),
             wibox.container.background(wibox.container.margin(clock, dpi(4), dpi(8)), seg2),

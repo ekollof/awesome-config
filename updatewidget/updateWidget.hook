@@ -6,8 +6,8 @@ Type = Package
 Target = *
 
 [Action]
-Description = Updating pacman widget...
+Description = Updating update widget...
 Depends = awesome
 When = PostTransaction
-Exec = /home/<user>/.config/awesome/pacman/awesome-owner 'pacman.hook()'
+Exec = /home/<user>/.config/awesome/updatewidget/awesome-owner 'update_widget_hook()'
 

@@ -5,17 +5,66 @@ local beautiful = require("beautiful")
 local markup    = require("lain.util").markup
 local dpi       = require("beautiful.xresources").apply_dpi
 
+-- ---------------------------------------------------------------------------
+-- Distro detection
+-- Read /etc/os-release once at load time to pick the right update commands.
+-- Supported families:
+--   arch   – checkupdates (pacman-contrib) + yay/paru for AUR
+--   debian – apt list --upgradable (Ubuntu, Linux Mint, Debian, Pop!_OS, …)
+-- ---------------------------------------------------------------------------
+local function detect_distro()
+    local f = io.open("/etc/os-release", "r")
+    if not f then return "unknown" end
+    local content = f:read("*a")
+    f:close()
+    -- Check ID and ID_LIKE fields
+    local id      = (content:match('\nID="?([^"\n]+)"?')      or ""):lower()
+    local id_like = (content:match('\nID_LIKE="?([^"\n]+)"?') or ""):lower()
+    local combined = id .. " " .. id_like
+    if combined:find("arch") or combined:find("cachyos") or
+       combined:find("endeavour") or combined:find("garuda") or
+       combined:find("artix") or combined:find("manjaro") then
+        return "arch"
+    elseif combined:find("debian") or combined:find("ubuntu") or
+           combined:find("mint") or combined:find("pop") or
+           combined:find("elementary") or combined:find("linuxmint") then
+        return "debian"
+    end
+    return "unknown"
+end
+
+local DISTRO = detect_distro()
+
 local pacman = {
     repo_pkgs  = {},
     aur_pkgs   = {},
     ---@type gears.timer|nil
     timer      = nil,
     _widget    = nil,  -- stored for hook refresh
+    distro     = DISTRO,
 }
 
-local GLYPH        = "󰏖"
-local CMD_REPO     = "checkupdates 2>/dev/null"
-local CMD_AUR      = "yay -Qua 2>/dev/null"
+local GLYPH = "󰏖"
+
+-- Per-distro commands.
+-- Arch: checkupdates + yay/paru for AUR — output is "name old -> new" per line.
+-- Debian/Ubuntu/Mint: LANG=C apt-get -s upgrade — output includes "Inst pkgname
+--   [oldver] (newver ...)" lines for each package that would actually be upgraded.
+--   This correctly excludes phased updates and held packages (unlike `apt list
+--   --upgradable` which shows everything in the cache regardless).
+local CMD_REPO, CMD_AUR
+if DISTRO == "arch" then
+    CMD_REPO = "checkupdates 2>/dev/null"
+    CMD_AUR  = "yay -Qua 2>/dev/null"
+elseif DISTRO == "debian" then
+    -- Simulate upgrade without root or network. LANG=C ensures English output
+    -- for reliable parsing regardless of the user's locale.
+    CMD_REPO = "LANG=C apt-get -s upgrade 2>/dev/null"
+    CMD_AUR  = ""  -- no AUR equivalent on Debian/Ubuntu
+else
+    CMD_REPO = ""
+    CMD_AUR  = ""
+end
 
 -- Popup state
 local popup_obj = nil
@@ -78,7 +127,7 @@ local function popup_show(anchor_widget)
                 markup = " ", widget = wibox.widget.textbox,
             })
         end
-        section_header(string.format("AUR  (%d)", #aur))
+        section_header(string.format("AUR/PPA  (%d)", #aur))
         for _, p in ipairs(aur) do pkg_row(p) end
     end
 
@@ -102,16 +151,48 @@ local function popup_show(anchor_widget)
     }
 end
 
+-- Parse a single "Inst" line from `apt-get -s upgrade` output.
+-- Format examples:
+--   Inst bash [5.1-6ubuntu1] (5.1-6ubuntu1.1 Ubuntu:22.04 [amd64])
+--   Inst linux-headers-generic (5.15.0.94.91 Ubuntu:22.04 [amd64])
+-- Returns a "name old -> new" string, or nil if the line isn't an Inst line.
+local function parse_apt_inst_line(line)
+    local name = line:match("^Inst (%S+)")
+    if not name then return nil end
+    local oldver = line:match("%[([^%]]+)%]")          -- bracketed = current ver
+    local newver = line:match("%((%S+)")               -- first token inside parens
+    if newver then
+        if oldver then
+            return name .. " " .. oldver .. " -> " .. newver
+        else
+            return name .. " (new) -> " .. newver
+        end
+    end
+    return name  -- fallback: just the name
+end
+
 local function update_widget(widget)
+    -- On unknown/unsupported distros do nothing
+    if CMD_REPO == "" then return end
+
     -- Run both commands, collect results, then update
     awful.spawn.easy_async_with_shell(CMD_REPO, function(repo_out)
-        awful.spawn.easy_async_with_shell(CMD_AUR, function(aur_out)
+        local finish = function(aur_out)
             local repo_pkgs, aur_pkgs = {}, {}
             for line in repo_out:gmatch("[^\n]+") do
-                if line ~= "" then repo_pkgs[#repo_pkgs + 1] = line end
+                if line ~= "" then
+                    if DISTRO == "debian" then
+                        local parsed = parse_apt_inst_line(line)
+                        if parsed then repo_pkgs[#repo_pkgs + 1] = parsed end
+                    else
+                        repo_pkgs[#repo_pkgs + 1] = line
+                    end
+                end
             end
-            for line in aur_out:gmatch("[^\n]+") do
-                if line ~= "" then aur_pkgs[#aur_pkgs + 1] = line end
+            if aur_out then
+                for line in aur_out:gmatch("[^\n]+") do
+                    if line ~= "" then aur_pkgs[#aur_pkgs + 1] = line end
+                end
             end
             pacman.repo_pkgs = repo_pkgs
             pacman.aur_pkgs  = aur_pkgs
@@ -125,7 +206,15 @@ local function update_widget(widget)
             end
             widget:set_markup(markup.fontfg(beautiful.font, beautiful.fg_normal,
                 " " .. GLYPH .. " " .. label .. " "))
-        end)
+        end
+
+        if CMD_AUR ~= "" then
+            awful.spawn.easy_async_with_shell(CMD_AUR, function(aur_out)
+                finish(aur_out)
+            end)
+        else
+            finish(nil)
+        end
     end)
 end
 

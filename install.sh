@@ -212,7 +212,7 @@ install_pkgs \
 # Xfce utilities
 install_pkgs \
     xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings-manager --- \
-    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings-manager --- \
+    xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings --- \
     x11/xfce4-terminal x11/xfce4-taskmanager x11/xfce4-appfinder x11/xfce4-screenshooter x11/xfce4-settings-manager --- \
     xfce4-terminal xfce4-taskmanager xfce4-appfinder xfce4-screenshooter xfce4-settings-manager
 
@@ -243,6 +243,41 @@ install_pkgs \
     lua-lgi --- \
     devel/lua-lgi --- \
     lua-lgi
+
+# xss-lock — hooks xscreensaver idle timer to run the lock script
+install_pkgs \
+    xss-lock --- \
+    xss-lock --- \
+    SKIP --- \
+    SKIP
+
+# ── i3lock-color (screen locker) ───────────────────────────────────────────────
+
+info "Checking for i3lock-color..."
+
+if i3lock --version 2>&1 | grep -q "i3lock-color"; then
+    ok "i3lock-color already installed ($(i3lock --version 2>&1 | head -1))."
+else
+    case "$OS" in
+        arch)
+            info "Installing i3lock-color from AUR..."
+            pkg_install_aur i3lock-color
+            ;;
+        debian|ubuntu)
+            # Not available in apt — build from source using the bundled script.
+            info "i3lock-color not found. Building from source..."
+            if [[ $DRY_RUN -eq 1 ]]; then
+                printf '    (dry) bash %s/scripts/build-i3lock-color.sh\n' "$REPO_DIR"
+            else
+                bash "$REPO_DIR/scripts/build-i3lock-color.sh"
+            fi
+            ;;
+        freebsd|openbsd)
+            warn "i3lock-color: no package available for $OS — build manually from source."
+            warn "  See: https://github.com/Raymo111/i3lock-color"
+            ;;
+    esac
+fi
 
 # Pacman update checking (Arch only)
 if [[ "$OS" == "arch" ]]; then
@@ -294,7 +329,7 @@ else
     warn "As a fallback, any Nerd Font monospace will work — e.g. JetBrainsMono Nerd Font."
 fi
 
-# Nerd Font symbols (needed for pacmanwidget glyph U+F0416)
+# Nerd Font symbols (needed for updatewidget glyph U+F0416)
 case "$OS" in
     arch)
         pkg_install_aur ttf-nerd-fonts-symbols-mono 2>/dev/null || \
@@ -351,9 +386,9 @@ fi
 
 if [[ "$OS" == "arch" ]]; then
     HOOK_DIR="/etc/pacman.d/hooks"
-    HOOK_FILE="$HOOK_DIR/pacmanWidget.hook"
+    HOOK_FILE="$HOOK_DIR/updateWidget.hook"
     if [[ ! -f "$HOOK_FILE" ]]; then
-        info "Installing pacman hook for pacmanwidget..."
+        info "Installing pacman hook for updatewidget..."
         run sudo mkdir -p "$HOOK_DIR"
         if [[ $DRY_RUN -eq 0 ]]; then
             sudo tee "$HOOK_FILE" > /dev/null <<'EOF'
@@ -367,7 +402,7 @@ Target = *
 [Action]
 Description = Notifying AwesomeWM pacman widget...
 When = PostTransaction
-Exec = /bin/sh -c 'echo "pacman_widget_hook()" | awesome-client 2>/dev/null || true'
+Exec = /bin/sh -c 'echo "update_widget_hook()" | awesome-client 2>/dev/null || true'
 EOF
         else
             printf '    (dry) write %s\n' "$HOOK_FILE"

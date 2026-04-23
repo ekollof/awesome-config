@@ -226,8 +226,7 @@ install_pkgs \
     alsa-utils pulseaudio pavucontrol
 
 # MPD stack
-# Note: on Fedora, mpd is not in the default repos — enable RPM Fusion first:
-#   sudo dnf install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+# On Fedora, mpd is in RPM Fusion free — enabled automatically below if needed.
 install_pkgs \
     mpd mpc ncmpcpp --- \
     mpd mpc ncmpcpp --- \
@@ -237,10 +236,16 @@ install_pkgs \
     mpd mpc ncmpcpp
 
 if [[ "$OS" == "fedora" ]]; then
-    if ! rpm -q mpd &>/dev/null; then
-        warn "mpd is not in Fedora's default repos. Enable RPM Fusion free and re-run:"
-        warn "  sudo dnf install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
+    if ! rpm -q rpmfusion-free-release &>/dev/null; then
+        info "Enabling RPM Fusion free repo (required for mpd)..."
+        FEDORA_VER=$(rpm -E %fedora)
+        run sudo dnf install -y \
+            "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VER}.noarch.rpm"
+    else
+        ok "RPM Fusion free repo already enabled."
     fi
+    # Now install mpd (may have been skipped above if repo wasn't present yet)
+    pkg_install_dnf mpd mpc ncmpcpp
 fi
 
 # File manager

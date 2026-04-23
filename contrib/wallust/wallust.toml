@@ -1,0 +1,91 @@
+# wallust.toml — example configuration for use with this AwesomeWM config
+#
+# Copy to ~/.config/wallust/wallust.toml
+# Copy the templates/ directory to ~/.config/wallust/templates/
+#
+# Usage:
+#   wallust run /path/to/wallpaper.jpg   # generate colors + apply templates
+#   wallust run -b kmeans /path/to/...   # try different backend if colors look off
+#
+# Then restart AwesomeWM:
+#   echo 'awesome.restart()' | awesome-client
+
+# ── color extraction ─────────────────────────────────────────────────────────
+
+# Backend controls how the image is parsed to extract prominent colors.
+# wal      — classic pywal algorithm, good general purpose default
+# kmeans   — k-means clustering, often more vibrant results
+# thumb    — fast thumbnail-based extraction
+# fastresize — fast resize-based, good for large images
+backend = "wal"
+
+# Color space used to select and produce palette colors.
+# labmixed — perceptual color space, best overall results
+# lab, lch, lchmixed are alternatives if labmixed gives muddy colors
+color_space = "labmixed"
+
+# How far apart colors must be to count as distinct (0 = no threshold).
+# Increase if you get near-identical colors; decrease for more variety.
+threshold = 2
+
+# Fallback palette used when the image has insufficient color variety.
+fallback_colors = ["#FFFFFF", "#000000", "#D3D3D3", "#808080"]
+
+# Palette scheme — controls how extracted colors are mapped to color0–color15.
+# dark16 works well for most wallpapers on a dark desktop.
+palette = "dark16"
+
+# Ensure readable contrast between foreground and background.
+check_contrast = true
+
+# Boost color saturation. 50 = neutral; higher = more vivid; lower = muted.
+saturation = 10
+
+# Alpha value exposed to templates as {alpha} / {alpha_dec}.
+alpha = 75
+
+# Emit pywal-compatible output (colors written to ~/.cache/wal/).
+pywal = true
+
+# ── templates ────────────────────────────────────────────────────────────────
+# Each entry reads a template file and writes a generated output file.
+# new_engine = true  → use {{variable}} syntax (needed for JSON/CSS/Lua)
+# pywal = true       → use {variable} syntax (legacy pywal format)
+
+[templates]
+# Required: AwesomeWM color palette — read by theme.lua on startup
+awesome = { template = "awesome-colors.lua", target = "~/.cache/wal/awesome-colors.lua", new_engine = true }
+
+# Required: rofi color theme — loaded by rofi config
+rofi = { template = "colors-rofi.rasi", target = "~/.config/rofi/wallust/colors-rofi.rasi", new_engine = true }
+
+# Optional extras — uncomment what you use
+
+# kitty terminal colors
+# kitty = { template = "colors-kitty.conf", target = "~/.config/kitty/wallust-colors.conf", new_engine = true }
+
+# Shell variables — source in .bashrc/.zshrc for color-aware CLI tools
+# shell = { template = "colors.sh", target = "~/.cache/wal/colors.sh", new_engine = true }
+
+# X resources — apply with: xrdb -merge ~/.cache/wal/colors.Xresources
+# xrdb = { template = "colors.Xresources", target = "~/.cache/wal/colors.Xresources", pywal = true }
+
+# CSS custom properties — useful for web-based UIs (e.g. qutebrowser userContent)
+# css = { template = "colors.css", target = "~/.cache/wal/colors.css", new_engine = true }
+
+# JSON — machine-readable palette, consumed by some tools directly
+# json = { template = "colors.json", target = "~/.cache/wal/colors.json", pywal = true }
+
+# GTK2/3/4 themes (requires FlatColor GTK theme installed)
+# gtk2  = { template = "gtk2.base",   target = "~/.local/share/themes/FlatColor/gtk-2.0/gtkrc",       new_engine = true }
+# gtk3  = { template = "gtk3.0.base", target = "~/.local/share/themes/FlatColor/gtk-3.0/gtk.css",     pywal = true }
+# gtk4  = { template = "gtk4.0.base", target = "~/.config/gtk-4.0/gtk.css",                           new_engine = true }
+
+# ── hooks ─────────────────────────────────────────────────────────────────────
+# Shell commands run after templates are applied.
+# Restart AwesomeWM to pick up the new colors (rc.lua reads awesome-colors.lua at startup).
+# NOTE: do not restart awesome here if you are calling wallust from within awesome itself
+#       (e.g. from the wallpaper.sh script) — the script handles the restart.
+
+# [hooks]
+# xrdb = "xrdb -merge ~/.cache/wal/colors.Xresources"

@@ -252,9 +252,31 @@ Core runtime dependencies installed by `install.sh`:
 │   ├── lock.sh                   # i3lock-color screen locker
 │   ├── build-i3lock-color.sh     # Build i3lock-color from source
 │   └── picom-toggle.sh           # Toggle compositor
+├── contrib/
+│   ├── wallpaper.sh              # Wallpaper setter + wallust + AwesomeWM restart
+│   └── wallust/
+│       ├── wallust.toml          # Example wallust config (copy to ~/.config/wallust/)
+│       └── templates/
+│           ├── awesome-colors.lua  # Lua palette template (required)
+│           ├── colors-rofi.rasi    # Rofi color theme
+│           └── colors-kitty.conf   # Kitty terminal colors
 ├── picom.conf                    # Compositor config
 ├── install.sh                    # Dependency installer
 ├── lain/                         # Submodule
 ├── freedesktop/                  # Submodule
 └── awesome-wm-widgets/           # Submodule
 ```
+
+## contrib/
+
+The `contrib/` directory contains example configurations and helper scripts that
+are not required by AwesomeWM itself but are useful companions to this setup.
+See [`contrib/README.md`](contrib/README.md) for setup instructions.
+
+| File | Description |
+|---|---|
+| `contrib/wallpaper.sh` | Set a wallpaper, regenerate the wallust palette, and restart AwesomeWM in one command. Supports `random`, a specific path, or `reload` to reprocess the current wallpaper. |
+| `contrib/wallust/wallust.toml` | Minimal wallust config with the templates this setup needs. Copy to `~/.config/wallust/wallust.toml`. |
+| `contrib/wallust/templates/awesome-colors.lua` | Lua palette template consumed by `theme.lua`. Required for wallust integration. |
+| `contrib/wallust/templates/colors-rofi.rasi` | Rofi color theme template. `@import` from your rofi config. |
+| `contrib/wallust/templates/colors-kitty.conf` | Kitty terminal color template. `include` from `kitty.conf`. |

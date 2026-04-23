@@ -104,6 +104,15 @@ wallpaper reload    # re-run wallust on current wallpaper, restart AwesomeWM
 
 Keybindings: `Ctrl+Alt+W` (random), `Ctrl+Alt+Shift+W` (reload).
 
+> **Note:** AwesomeWM inherits a stripped PATH from the X session and cannot see tools
+> installed into `~/.cargo/bin`, `~/.local/share/mise`, etc. Wallust must be symlinked
+> into `~/.local/bin` so AwesomeWM can find it:
+> ```bash
+> ln -sf ~/.cargo/bin/wallust ~/.local/bin/wallust
+> ```
+> Without this, `Ctrl+Alt+W`/`Ctrl+Alt+Shift+W` will set the wallpaper via feh but
+> the color palette will not update and AwesomeWM will not restart.
+
 ### Volume
 
 Volume is controlled via `pactl` (PulseAudio/PipeWire). An in-place naughty notification

@@ -134,3 +134,33 @@ any package is not found.
 - CPU temperature is at `/sys/class/hwmon/hwmon4/temp1_input` (zenpower, millidegrees C).
 - No battery on this system — battery widget is conditionally hidden via
   `has_battery` check on `/sys/class/power_supply/BAT*`.
+
+## AwesomeWM PATH vs. login PATH
+
+AwesomeWM inherits the PATH from the X session at login time. This is a **stripped
+PATH** — it does not include directories added by `~/.profile`, `~/.bashrc`, cargo,
+mise, pyenv, etc. which are only sourced in interactive shells.
+
+**Current AwesomeWM PATH** (from `awesome-client 'return os.getenv("PATH")'`):
+```
+~/.atuin/bin:~/.local/bin:~/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+```
+
+Any tool not in one of those directories will silently fail when called from
+`awful.spawn.with_shell()`, widget commands, or scripts launched by keybindings.
+
+**Known tools that need a symlink:**
+
+| Tool | Installed at | Fix |
+|---|---|---|
+| `wallust` | `~/.cargo/bin/wallust` | `ln -sf ~/.cargo/bin/wallust ~/.local/bin/wallust` |
+
+The symlink into `~/.local/bin` is the correct fix — do not hardcode full paths
+in scripts or Lua, as that breaks portability and makes the config harder to maintain.
+
+If a widget or keybinding silently does nothing, check whether the tool it calls
+is visible under AwesomeWM's PATH before looking for bugs in the Lua code:
+
+```bash
+awesome-client 'return os.execute("which <tool>")'
+```

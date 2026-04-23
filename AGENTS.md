@@ -26,9 +26,12 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 |---|---|
 | `rc.lua` | Main config — keybindings, rules, autostart, tags |
 | `themes/powerarrow/theme.lua` | Wibar layout, all widgets, wallust colors, fonts |
-| `pacmanwidget/` | Custom pacman/AUR update count widget |
+| `updatewidget/` | Multi-distro update count widget (apt/pacman/yay) |
+| `scripts/lock.sh` | Screen locker — reads wallust wallpaper, runs i3lock-color |
+| `scripts/build-i3lock-color.sh` | Build i3lock-color from source (Debian/Ubuntu/Fedora) |
 | `scripts/picom-toggle.sh` | Toggle picom compositor (bound to Ctrl+Alt+O) |
 | `picom.conf` | Picom compositor config |
+| `install.sh` | Dependency installer — Arch, Debian/Ubuntu, Fedora, Alpine, FreeBSD, OpenBSD |
 
 ## Submodules
 
@@ -37,7 +40,7 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 | `lain/` | https://github.com/lcpz/lain | Widget library (MPD, mem, cpu, net, cal, separators) |
 | `freedesktop/` | https://github.com/lcpz/awesome-freedesktop | Right-click app menu from .desktop files |
 | `awesome-wm-widgets/` | https://github.com/streetturtle/awesome-wm-widgets | Weather widget (`weather-api-widget/` only used) |
-| `pacmanwidget/` | vendored (based on raksooo/pacmanwidget, heavily modified) | Pacman update widget — not a submodule |
+| `updatewidget/` | vendored (based on raksooo/pacmanwidget, heavily modified) | Multi-distro update count — not a submodule |
 
 ## Wallust integration
 
@@ -72,7 +75,7 @@ supports prev/toggle/next/stop clicks and scroll-to-change-volume.
 
 ## Pacman hook
 
-`/etc/pacman.d/hooks/pacmanWidget.hook` triggers `pacman_widget_hook()` (an
+`/etc/pacman.d/hooks/updateWidget.hook` triggers `update_widget_hook()` (an
 AwesomeWM global) after package operations to refresh the update count
 without waiting for the next 5-minute poll.
 
@@ -86,6 +89,35 @@ Avoid GNU-specific flags and tools. Prefer POSIX equivalents:
 - Use `sysctl` for BSD kernel stats; guard Linux-only paths (e.g. `/proc/`) with an OS check
 - ZFS ARC: `/proc/spl/kstat/zfs/arcstats` on Linux; `sysctl kstat.zfs.misc.arcstats.*` on FreeBSD
 - Detect OS at startup with `io.open` path probing or a single `uname` call; avoid repeated branching
+
+## Testing install.sh
+
+`install.sh` supports Arch, Debian/Ubuntu, Fedora, Alpine, FreeBSD, and OpenBSD.
+Package names must be verified against each distro's package manager. Use Docker
+to test without installing anything:
+
+```bash
+# Check a single distro
+docker run --rm -v /tmp/test-pkgs.sh:/test-pkgs.sh ubuntu:24.04 sh /test-pkgs.sh
+
+# Run all supported Linux distros in parallel
+for image in ubuntu:24.04 debian:12 archlinux:latest fedora:41 alpine:latest; do
+    docker run --rm -v /tmp/test-pkgs.sh:/test-pkgs.sh "$image" sh /test-pkgs.sh &
+done
+wait
+```
+
+The test script `/tmp/test-pkgs.sh` auto-detects the distro, updates the package
+index, and checks every package name with the native package manager query tool
+(`apt-cache show`, `pacman -Si`, `dnf info`, `apk info`). It exits non-zero if
+any package is not found.
+
+**Known distro-specific notes:**
+- Fedora: `mpd` requires RPM Fusion free repo (not in default repos)
+- Fedora/Alpine: use `unclutter-xfixes` instead of `unclutter`
+- Alpine: `xss-lock` is not available; screen locking requires a manual setup
+- Arch: `xfce4-settings` (not `xfce4-settings-manager`) is the correct package name
+- Debian/Ubuntu: i3lock-color is built from source via `scripts/build-i3lock-color.sh`
 
 ## Agent guidelines
 

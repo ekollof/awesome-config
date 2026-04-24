@@ -34,8 +34,8 @@ source on Debian/Ubuntu/Fedora, and installs the pacman update hook on Arch.
 ## Features
 
 ### Wibar
-
-A single 26px top bar on each monitor with powerline arrow separators.
+ 
+A single 32px top bar on each monitor with powerline arrow separators.
 Segment colors are drawn from the active wallust palette so the bar always matches the wallpaper.
 
 **Left → Right:**

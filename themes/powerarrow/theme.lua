@@ -30,8 +30,8 @@ local wallust_ok, wc = pcall(dofile, wallust_colors_path)
 if not wallust_ok then wc = {} end
 
 theme.wallpaper                                 = wc.wallpaper or theme.dir .. "/wall.png"
-theme.font                                      = "BerkeleyMono Nerd Font " .. dpi(9)
-local font10                                    = "BerkeleyMono Nerd Font " .. dpi(10)
+theme.font                                      = "BerkeleyMono Nerd Font 11"
+local font10                                    = "BerkeleyMono Nerd Font 12"
 theme.fg_normal                                 = wc.foreground  or "#FEFEFE"
 theme.fg_focus                                  = wc.color6      or "#32D6FF"
 theme.fg_urgent                                 = wc.color1      or "#C83F11"
@@ -366,7 +366,7 @@ function theme.at_screen_connect(s)
     s.mypromptbox = awful.widget.prompt()
     -- Create systray
     s.systray = wibox.widget.systray()
-    s.systray:set_base_size(dpi(20))
+    s.systray:set_base_size(dpi(24))
     -- Create an imagebox widget which will contains an icon indicating which layout we're using.
     -- We need one layoutbox per screen.
     s.mylayoutbox = awful.widget.layoutbox(s)
@@ -383,7 +383,7 @@ function theme.at_screen_connect(s)
     s.mytasklist = awful.widget.tasklist(s, awful.widget.tasklist.filter.currenttags, awful.util.tasklist_buttons)
 
     -- Create the wibox
-    s.mywibox = awful.wibar({ position = "top", screen = s, height = dpi(26), bg = theme.bg_normal, fg = theme.fg_normal })
+    s.mywibox = awful.wibar({ position = "top", screen = s, height = dpi(32), bg = theme.bg_normal, fg = theme.fg_normal })
 
     -- Add widgets to the wibox
     s.mywibox:setup {

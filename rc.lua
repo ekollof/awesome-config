@@ -312,9 +312,28 @@ local function max_layout_minimize(s)
 	local is_max = (layout == awful.layout.suit.max or
 	                layout == awful.layout.suit.max.fullscreen)
 	local focused = client.focus
+
+	-- If we're in max layout, we must ensure at least one client is visible.
+	-- If nothing is focused on this screen, or the focused client is not on
+	-- the current tag, we pick the first available client to be "visible".
+	local target_visible = focused
+	if is_max and (not focused or focused.screen ~= s or not focused:isvisible()) then
+		local t = s.selected_tag
+		if t then
+			local cls = t:clients()
+			-- Filter for non-floating, non-minimized (or auto-minimized)
+			for _, c in ipairs(cls) do
+				if not c.floating then
+					target_visible = c
+					break
+				end
+			end
+		end
+	end
+
 	for _, c in ipairs(s.clients) do
 		if not c.floating then
-			if is_max and c ~= focused then
+			if is_max and c ~= target_visible then
 				if not c.minimized then
 					c.minimized = true
 					c._max_auto_minimized = true

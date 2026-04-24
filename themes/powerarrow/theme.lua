@@ -30,8 +30,8 @@ local wallust_ok, wc = pcall(dofile, wallust_colors_path)
 if not wallust_ok then wc = {} end
 
 theme.wallpaper                                 = wc.wallpaper or theme.dir .. "/wall.png"
-theme.font                                      = "BerkeleyMono Nerd Font 9"
-local font10                                    = "BerkeleyMono Nerd Font 10"
+theme.font                                      = "BerkeleyMono Nerd Font " .. dpi(9)
+local font10                                    = "BerkeleyMono Nerd Font " .. dpi(10)
 theme.fg_normal                                 = wc.foreground  or "#FEFEFE"
 theme.fg_focus                                  = wc.color6      or "#32D6FF"
 theme.fg_urgent                                 = wc.color1      or "#C83F11"

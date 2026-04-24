@@ -400,8 +400,7 @@ function theme.at_screen_connect(s)
             layout = wibox.layout.fixed.horizontal,
             -- using separators
             arrow(theme.bg_normal, seg1),
-            pacman_widget and wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(3)), seg1) or nil,
-            wibox.container.margin(s.systray, dpi(3), dpi(3), dpi(2), dpi(2)),
+            pacman_widget and wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(6)), seg1) or nil,
             arrow(seg1, theme.bg_normal),
             mpdwidget,
             arrow(theme.bg_normal, seg2),
@@ -435,8 +434,9 @@ function theme.at_screen_connect(s)
             arrow(seg7, seg2),
             wibox.container.background(wibox.container.margin(clock, dpi(4), dpi(8)), seg2),
             arrow(seg2, theme.bg_normal),
-            --]]
             s.mylayoutbox,
+            arrow(theme.bg_normal, theme.bg_systray),
+            wibox.container.background(wibox.container.margin(s.systray, dpi(6), dpi(6), dpi(4), dpi(4)), theme.bg_systray),
         },
     }
 end

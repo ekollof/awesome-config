@@ -28,7 +28,8 @@ cpu.lain = lain.widget.cpu({
     settings = function()
         _now_last = cpu_now
         local beautiful = require("beautiful")
-        widget:set_markup(markup.font(beautiful.font, " " .. cpu_now.usage .. "% "))
+        local usage = string.format("%3d", cpu_now.usage)
+        widget:set_markup(markup.font(beautiful.font, " " .. usage .. "% "))
     end
 })
 
@@ -42,10 +43,12 @@ if not _is_linux then
             awful.spawn.easy_async_with_shell(
                 "top -bn1 | grep 'CPU states' | awk '{print $3}' | tr -d '%' || sysctl -n vm.loadavg | awk '{print $2 * 100}'",
                 function(stdout)
-                    local usage = tonumber(stdout:match("(%d+%.?%d*)")) or 0
-                    _now_last = { usage = math.floor(usage) }
+                    local usage_val = tonumber(stdout:match("(%d+%.?%d*)")) or 0
+                    usage_val = math.floor(usage_val)
+                    _now_last = { usage = usage_val }
                     local beautiful = require("beautiful")
-                    cpu.lain.widget:set_markup(markup.font(beautiful.font, " " .. _now_last.usage .. "% "))
+                    local usage = string.format("%3d", usage_val)
+                    cpu.lain.widget:set_markup(markup.font(beautiful.font, " " .. usage .. "% "))
                 end
             )
         end

@@ -252,6 +252,8 @@ neticon:connect_signal("mouse::enter", net_widget.popup_show)
 net_widget.widget:connect_signal("mouse::enter", net_widget.popup_show)
 neticon:connect_signal("mouse::leave", net_widget.popup_hide)
 net_widget.widget:connect_signal("mouse::leave", net_widget.popup_hide)
+-- System Monitor
+local sysmon = require("widgets.sysmon")
 -- Uptime
 local uptime_widget = require("widgets.uptime")
 uptime_widget.attach(60)

@@ -325,6 +325,11 @@ local function max_layout_minimize(s)
 			for _, c in ipairs(cls) do
 				if not c.floating then
 					target_visible = c
+					-- Force focus if we are switching to this tag
+					if not focused or not focused:isvisible() then
+						client.focus = c
+						c:raise()
+					end
 					break
 				end
 			end

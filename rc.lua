@@ -320,18 +320,35 @@ local function max_layout_minimize(s)
 	if is_max and (not focused or focused.screen ~= s or not focused:isvisible()) then
 		local t = s.selected_tag
 		if t then
-			local cls = t:clients()
-			-- Filter for non-floating, non-minimized (or auto-minimized)
-			for _, c in ipairs(cls) do
-				if not c.floating then
-					target_visible = c
-					-- Force focus if we are switching to this tag
-					if not focused or not focused:isvisible() then
-						client.focus = c
-						c:raise()
+			-- 1. Try to find the most recently focused client on this tag from history
+			local history = awful.client.focus.history.list
+			for _, c in ipairs(history) do
+				if c.screen == s and not c.floating then
+					for _, ct in ipairs(c:tags()) do
+						if ct == t then
+							target_visible = c
+							break
+						end
 					end
-					break
 				end
+				if target_visible ~= focused then break end
+			end
+
+			-- 2. Fallback to first available tiled client if history search fails
+			if target_visible == focused or not target_visible then
+				local cls = t:clients()
+				for _, c in ipairs(cls) do
+					if not c.floating then
+						target_visible = c
+						break
+					end
+				end
+			end
+
+			-- Force focus if we are switching to this tag
+			if target_visible and target_visible ~= focused then
+				client.focus = target_visible
+				target_visible:raise()
 			end
 		end
 	end

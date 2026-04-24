@@ -265,6 +265,9 @@ neticon:connect_signal("mouse::enter", net_widget.popup_show)
 net_widget.widget:connect_signal("mouse::enter", net_widget.popup_show)
 neticon:connect_signal("mouse::leave", net_widget.popup_hide)
 net_widget.widget:connect_signal("mouse::leave", net_widget.popup_hide)
+-- Uptime
+local uptime_widget = require("widgets.uptime")
+uptime_widget.attach(60)
 -- Weather widget (API key from pass, coordinates resolved via GeoIP)
 -- Callbacks stored so each screen can spawn its own widget instance
 local weather_args = nil          -- set once async chain completes
@@ -431,7 +434,9 @@ function theme.at_screen_connect(s)
              }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
              arrow(seg_vol, seg7),
             wibox.container.background(wibox.container.margin(wibox.widget { nil, neticon, net_widget.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
-            arrow(seg7, seg2),
+            arrow(seg7, seg1),
+            wibox.container.background(wibox.container.margin(uptime_widget.widget, dpi(4), dpi(4)), seg1),
+            arrow(seg1, seg2),
             wibox.container.background(wibox.container.margin(clock, dpi(4), dpi(8)), seg2),
             arrow(seg2, theme.bg_normal),
             s.mylayoutbox,

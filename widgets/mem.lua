@@ -17,7 +17,7 @@ local lain   = require("lain")
 local markup = require("lain.util").markup
 local dpi    = require("beautiful.xresources").apply_dpi
 
--- ZFS availability -------------------------------------------------------
+-- ZFS and Disk Stats availability ---------------------------------------
 local _zfs_arcstats = "/proc/spl/kstat/zfs/arcstats"
 local _zfs_linux    = io.open(_zfs_arcstats, "r") ~= nil
 local _zfs_freebsd  = (not _zfs_linux) and (function()
@@ -27,6 +27,9 @@ local _zfs_freebsd  = (not _zfs_linux) and (function()
     return v ~= nil
 end)()
 local _zfs_available = _zfs_linux or _zfs_freebsd
+
+local _proc_diskstats = "/proc/diskstats"
+local _diskstats_available = io.open(_proc_diskstats, "r") ~= nil
 
 local _zfs_keys = {
     "size", "c", "c_max",
@@ -83,6 +86,43 @@ local function fetch_zfs(callback)
             parse(t)
         end)
     end
+end
+
+local _stats_last = {}
+local _time_last = 0
+local _disk_io_last = nil
+
+local function fetch_disk_io(callback)
+    if not _diskstats_available then callback(nil); return end
+    
+    awful.spawn.easy_async_with_shell("cat " .. _proc_diskstats, function(out)
+        local stats_now = {}
+        for line in out:gmatch("[^\n]+") do
+            local dev, s_read, s_write = line:match("%s*%d+%s+%d+%s+(%S+)%s+%d+%s+%d+%s+(%d+)%s+%d+%s+%d+%s+%d+%s+(%d+)")
+            if dev and (s_read ~= "0" or s_write ~= "0") then
+                stats_now[dev] = { r = tonumber(s_read), w = tonumber(s_write) }
+            end
+        end
+
+        local time_now = os.time()
+        local interval = os.difftime(time_now, _time_last)
+        if interval <= 0 then interval = 1 end
+
+        local total_r, total_w = 0, 0
+        for dev, s in pairs(stats_now) do
+            local last = _stats_last[dev] or s
+            local dr = (s.r - last.r) * 0.5 / interval
+            local dw = (s.w - last.w) * 0.5 / interval
+            if not dev:match("%d$") then
+                total_r = total_r + dr
+                total_w = total_w + dw
+            end
+        end
+
+        _stats_last = stats_now
+        _time_last = time_now
+        callback({ read = total_r, write = total_w })
+    end)
 end
 
 local function fetch_procs(callback)
@@ -155,6 +195,23 @@ local function build_popup_widget()
     }
     local outer = wibox.widget { layout, layout = wibox.layout.fixed.vertical, spacing = dpi(6) }
 
+    -- Disk I/O section
+    if _diskstats_available then
+        outer:add(separator())
+        if _disk_io_last then
+            local function fmt(kb)
+                if kb >= 1024 then return string.format("%.1f MB/s", kb / 1024)
+                else               return string.format("%.1f KB/s", kb) end
+            end
+            local d = _disk_io_last
+            local drows = wibox.widget { layout = wibox.layout.fixed.vertical, spacing = dpi(4) }
+            drows:add(section("💽  Disk I/O"))
+            drows:add(row("Read",  fmt(d.read)))
+            drows:add(row("Write", fmt(d.write)))
+            outer:add(drows)
+        end
+    end
+
     -- ZFS section
     if _zfs_available then
         outer:add(separator())
@@ -204,7 +261,7 @@ local _popup       = nil
 local _popup_timer = nil
 
 local function refresh()
-    local pending = 2
+    local pending = 3
     local function done()
         pending = pending - 1
         if pending == 0 then
@@ -214,6 +271,7 @@ local function refresh()
     end
     fetch_procs(function(p) _proc_last = p; done() end)
     fetch_zfs(function(z)   _zfs_last  = z; done() end)
+    fetch_disk_io(function(d) _disk_io_last = d; done() end)
 end
 
 function mem.popup_show()

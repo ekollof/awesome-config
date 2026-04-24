@@ -33,24 +33,48 @@ cpu.lain = lain.widget.cpu({
     end
 })
 
--- BSD Fallback for CPU usage
+-- BSD Fallback for CPU usage using sysctl (ported from Vicious)
 if not _is_linux then
+    local _prev_ticks = nil
     gears.timer {
         timeout   = 2,
         autostart = true,
         call_now  = true,
         callback  = function()
-            awful.spawn.easy_async_with_shell(
-                "top -bn1 | grep 'CPU states' | awk '{print $3}' | tr -d '%' || sysctl -n vm.loadavg | awk '{print $2 * 100}'",
-                function(stdout)
-                    local usage_val = tonumber(stdout:match("(%d+%.?%d*)")) or 0
-                    usage_val = math.floor(usage_val)
-                    _now_last = { usage = usage_val }
-                    local beautiful = require("beautiful")
-                    local usage = string.format("%3d", usage_val)
-                    cpu.lain.widget:set_markup(markup.font(beautiful.font, " " .. usage .. "% "))
+            -- OpenBSD: kern.cp_time (user, nice, sys, spin, intr, idle)
+            -- FreeBSD: kern.cp_time (user, nice, sys, intr, idle)
+            local cmd = "sysctl -n kern.cp_time 2>/dev/null"
+            awful.spawn.easy_async_with_shell(cmd, function(stdout)
+                local current_ticks = {}
+                for match in stdout:gmatch("(%d+)") do
+                    table.insert(current_ticks, tonumber(match))
                 end
-            )
+
+                if #current_ticks < 5 then return end
+
+                if not _prev_ticks then
+                    _prev_ticks = current_ticks
+                    return
+                end
+
+                local delta = {}
+                local total = 0
+                for i = 1, #current_ticks do
+                    local d = current_ticks[i] - _prev_ticks[i]
+                    table.insert(delta, d)
+                    total = total + d
+                end
+
+                -- Idle is always the last element in both FreeBSD and OpenBSD
+                local idle = delta[#delta]
+                local usage_val = total > 0 and math.floor(((total - idle) / total) * 100) or 0
+                
+                _now_last = { usage = usage_val }
+                local beautiful = require("beautiful")
+                local usage = string.format("%3d", usage_val)
+                cpu.lain.widget:set_markup(markup.font(beautiful.font, " " .. usage .. "% "))
+                _prev_ticks = current_ticks
+            end)
         end
     }
 end

@@ -215,18 +215,6 @@ local mpd_widget = require("widgets.mpd")({ color_artist = wc.color1 or "#FF8466
 local mpdwidget = mpd_widget.container
 local mpdicon   = mpd_widget.icon
 mpd_widget.attach()
--- MEM
-local mem_widget = require("widgets.mem")
-local memicon    = wibox.widget.imagebox(theme.widget_mem)
-mem_widget.attach(memicon, mem_widget.widget)
--- CPU
-local cpu_widget = require("widgets.cpu")
-local cpuicon    = wibox.widget.imagebox(theme.widget_cpu)
-cpu_widget.attach(cpuicon, cpu_widget.widget)
--- Temp
-local temp_widget = require("widgets.temp")
-local tempicon    = wibox.widget.imagebox(theme.widget_temp)
-temp_widget.attach(tempicon, temp_widget.widget)
 -- Battery (portable version)
 local bat_widget = require("widgets.battery")
 local baticon    = bat_widget.icon
@@ -257,7 +245,6 @@ elseif _os == "OpenBSD" then
         s:close()
     end
 end
-
 -- Net
 local net_widget = require("widgets.net")
 local neticon    = wibox.widget.imagebox(theme.widget_net)
@@ -407,12 +394,8 @@ function theme.at_screen_connect(s)
             arrow(seg1, theme.bg_normal),
             mpdwidget,
             arrow(theme.bg_normal, seg2),
-            wibox.container.background(wibox.container.margin(wibox.widget { memicon, mem_widget.widget, layout = wibox.layout.align.horizontal }, dpi(2), dpi(3)), seg2),
-            arrow(seg2, seg3),
-            wibox.container.background(wibox.container.margin(wibox.widget { cpuicon, cpu_widget.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(4)), seg3),
-            arrow(seg3, seg4),
-             wibox.container.background(wibox.container.margin(wibox.widget { tempicon, temp_widget.widget, layout = wibox.layout.align.horizontal }, dpi(4), dpi(4)), seg4),
-             arrow(seg4, seg5),
+            wibox.container.background(sysmon.widget, seg2),
+            arrow(seg2, seg5),
              (function()
                  local placeholder = wibox.widget {
                      markup = "<span foreground='" .. (wc.foreground or "#ffffff") .. "'>...</span>",

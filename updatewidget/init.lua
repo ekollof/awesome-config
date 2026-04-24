@@ -14,22 +14,32 @@ local dpi       = require("beautiful.xresources").apply_dpi
 -- ---------------------------------------------------------------------------
 local function detect_distro()
     local f = io.open("/etc/os-release", "r")
-    if not f then return "unknown" end
-    local content = f:read("*a")
-    f:close()
-    -- Check ID and ID_LIKE fields
-    local id      = (content:match('\nID="?([^"\n]+)"?')      or ""):lower()
-    local id_like = (content:match('\nID_LIKE="?([^"\n]+)"?') or ""):lower()
-    local combined = id .. " " .. id_like
-    if combined:find("arch") or combined:find("cachyos") or
-       combined:find("endeavour") or combined:find("garuda") or
-       combined:find("artix") or combined:find("manjaro") then
-        return "arch"
-    elseif combined:find("debian") or combined:find("ubuntu") or
-           combined:find("mint") or combined:find("pop") or
-           combined:find("elementary") or combined:find("linuxmint") then
-        return "debian"
+    if f then
+        local content = f:read("*a")
+        f:close()
+        local id      = (content:match('\nID="?([^"\n]+)"?')      or ""):lower()
+        local id_like = (content:match('\nID_LIKE="?([^"\n]+)"?') or ""):lower()
+        local combined = id .. " " .. id_like
+        if combined:find("arch") or combined:find("cachyos") or
+           combined:find("endeavour") or combined:find("garuda") or
+           combined:find("artix") or combined:find("manjaro") then
+            return "arch"
+        elseif combined:find("debian") or combined:find("ubuntu") or
+               combined:find("mint") or combined:find("pop") or
+               combined:find("elementary") or combined:find("linuxmint") then
+            return "debian"
+        end
     end
+    
+    -- BSD detection
+    local pf = io.popen("uname")
+    if pf then
+        local name = pf:read("*l")
+        pf:close()
+        if name == "FreeBSD" then return "freebsd" end
+        if name == "OpenBSD" then return "openbsd" end
+    end
+    
     return "unknown"
 end
 
@@ -46,21 +56,19 @@ local pacman = {
 
 local GLYPH = "󰏖"
 
--- Per-distro commands.
--- Arch: checkupdates + yay/paru for AUR — output is "name old -> new" per line.
--- Debian/Ubuntu/Mint: LANG=C apt-get -s upgrade — output includes "Inst pkgname
---   [oldver] (newver ...)" lines for each package that would actually be upgraded.
---   This correctly excludes phased updates and held packages (unlike `apt list
---   --upgradable` which shows everything in the cache regardless).
 local CMD_REPO, CMD_AUR
 if DISTRO == "arch" then
     CMD_REPO = "checkupdates 2>/dev/null"
     CMD_AUR  = "yay -Qua 2>/dev/null"
 elseif DISTRO == "debian" then
-    -- Simulate upgrade without root or network. LANG=C ensures English output
-    -- for reliable parsing regardless of the user's locale.
     CMD_REPO = "LANG=C apt-get -s upgrade 2>/dev/null"
-    CMD_AUR  = ""  -- no AUR equivalent on Debian/Ubuntu
+    CMD_AUR  = ""
+elseif DISTRO == "freebsd" then
+    CMD_REPO = "pkg version -l '<' 2>/dev/null"
+    CMD_AUR  = ""
+elseif DISTRO == "openbsd" then
+    CMD_REPO = "pkg_add -u -n 2>/dev/null | grep ' -> '"
+    CMD_AUR  = ""
 else
     CMD_REPO = ""
     CMD_AUR  = ""

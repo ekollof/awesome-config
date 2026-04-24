@@ -536,7 +536,7 @@ globalkeys = my_table.join(
 		if not t then return end
 		local clients, seen = {}, {}
 		for _, c in ipairs(awful.client.focus.history.list) do
-			if not c.minimized and c.screen == s then
+			if (not c.minimized or c._max_auto_minimized) and c.screen == s then
 				for _, ct in ipairs(c:tags()) do
 					if ct == t and not seen[c] then
 						seen[c] = true
@@ -546,7 +546,7 @@ globalkeys = my_table.join(
 			end
 		end
 		for _, c in ipairs(t:clients()) do
-			if not c.minimized and not seen[c] then
+			if (not c.minimized or c._max_auto_minimized) and not seen[c] then
 				clients[#clients + 1] = c
 			end
 		end
@@ -560,7 +560,7 @@ globalkeys = my_table.join(
 		if not t then return end
 		local clients, seen = {}, {}
 		for _, c in ipairs(awful.client.focus.history.list) do
-			if not c.minimized and c.screen == s then
+			if (not c.minimized or c._max_auto_minimized) and c.screen == s then
 				for _, ct in ipairs(c:tags()) do
 					if ct == t and not seen[c] then
 						seen[c] = true
@@ -570,7 +570,7 @@ globalkeys = my_table.join(
 			end
 		end
 		for _, c in ipairs(t:clients()) do
-			if not c.minimized and not seen[c] then
+			if (not c.minimized or c._max_auto_minimized) and not seen[c] then
 				clients[#clients + 1] = c
 			end
 		end
@@ -590,10 +590,36 @@ globalkeys = my_table.join(
 
 	-- Default client focus
 	awful.key({ altkey }, "j", function()
-		awful.client.focus.byidx(1)
+        local s = awful.screen.focused()
+        if awful.layout.get(s) == awful.layout.suit.max then
+            local t = s.selected_tag
+            if not t then return end
+            local clients = t:clients()
+            if #clients < 2 then return end
+            local index = gears.table.find_first_index(clients, client.focus) or 0
+            local next_c = clients[gears.math.cycle(#clients, index + 1)]
+            if next_c then
+                next_c:emit_signal("request::activate", "key.byidx", { raise = true })
+            end
+        else
+            awful.client.focus.byidx(1)
+        end
 	end, { description = "focus next by index", group = "client" }),
 	awful.key({ altkey }, "k", function()
-		awful.client.focus.byidx(-1)
+        local s = awful.screen.focused()
+        if awful.layout.get(s) == awful.layout.suit.max then
+            local t = s.selected_tag
+            if not t then return end
+            local clients = t:clients()
+            if #clients < 2 then return end
+            local index = gears.table.find_first_index(clients, client.focus) or 0
+            local prev_c = clients[gears.math.cycle(#clients, index - 1)]
+            if prev_c then
+                prev_c:emit_signal("request::activate", "key.byidx", { raise = true })
+            end
+        else
+            awful.client.focus.byidx(-1)
+        end
 	end, { description = "focus previous by index", group = "client" }),
 
 	-- By direction client focus
@@ -762,10 +788,18 @@ globalkeys = my_table.join(
 
 	-- Brightness
 	awful.key({}, "XF86MonBrightnessUp", function()
-		awful.spawn.with_shell("xbacklight -inc 10")
+        if _is_linux then
+            awful.spawn.with_shell("xbacklight -inc 10 || light -A 10")
+        else
+            awful.spawn.with_shell("backlight +10 2>/dev/null || intel_backlight incr 10 2>/dev/null")
+        end
 	end, { description = "+10%", group = "hotkeys" }),
 	awful.key({}, "XF86MonBrightnessDown", function()
-		awful.spawn.with_shell("xbacklight -dec 10")
+        if _is_linux then
+            awful.spawn.with_shell("xbacklight -dec 10 || light -U 10")
+        else
+            awful.spawn.with_shell("backlight -10 2>/dev/null || intel_backlight decr 10 2>/dev/null")
+        end
 	end, { description = "-10%", group = "hotkeys" }),
 
 	-- PulseAudio/PipeWire volume control

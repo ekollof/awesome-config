@@ -22,6 +22,8 @@ local cpu = {
 
 local _now_last = {}
 
+local _is_linux = io.open("/proc/version", "r") ~= nil
+
 cpu.lain = lain.widget.cpu({
     settings = function()
         _now_last = cpu_now
@@ -29,6 +31,27 @@ cpu.lain = lain.widget.cpu({
         widget:set_markup(markup.font(beautiful.font, " " .. cpu_now.usage .. "% "))
     end
 })
+
+-- BSD Fallback for CPU usage
+if not _is_linux then
+    gears.timer {
+        timeout   = 2,
+        autostart = true,
+        call_now  = true,
+        callback  = function()
+            awful.spawn.easy_async_with_shell(
+                "top -bn1 | grep 'CPU states' | awk '{print $3}' | tr -d '%' || sysctl -n vm.loadavg | awk '{print $2 * 100}'",
+                function(stdout)
+                    local usage = tonumber(stdout:match("(%d+%.?%d*)")) or 0
+                    _now_last = { usage = math.floor(usage) }
+                    local beautiful = require("beautiful")
+                    cpu.lain.widget:set_markup(markup.font(beautiful.font, " " .. _now_last.usage .. "% "))
+                end
+            )
+        end
+    }
+end
+
 cpu.widget = cpu.lain.widget
 
 local function build_popup_widget()

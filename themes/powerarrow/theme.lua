@@ -225,39 +225,35 @@ cpu_widget.attach(cpuicon, cpu_widget.widget)
 local temp_widget = require("widgets.temp")
 local tempicon    = wibox.widget.imagebox(theme.widget_temp)
 temp_widget.attach(tempicon, temp_widget.widget)
--- Battery (only created when a battery is present)
-local has_battery = require("gears.filesystem").dir_readable("/sys/class/power_supply/") and
-    (function()
-        local f = io.popen("ls /sys/class/power_supply/")
-        if not f then return false end
-        local out = f:read("*a"); f:close()
-        return out:match("BAT") ~= nil
-    end)()
+-- Battery (portable version)
+local bat_widget = require("widgets.battery")
+local baticon    = bat_widget.icon
+local bat        = bat_widget.widget
+bat_widget.attach(30)
 
-local baticon, bat
-if has_battery then
-    baticon = wibox.widget.imagebox(theme.widget_battery)
-    bat = lain.widget.bat({
-        settings = function()
-            if bat_now.status and bat_now.status ~= "N/A" then
-                if bat_now.ac_status == 1 then
-                    widget:set_markup(markup.font(theme.font, " AC "))
-                    baticon:set_image(theme.widget_ac)
-                    return
-                elseif bat_now.perc and tonumber(bat_now.perc) <= 5 then
-                    baticon:set_image(theme.widget_battery_empty)
-                elseif bat_now.perc and tonumber(bat_now.perc) <= 15 then
-                    baticon:set_image(theme.widget_battery_low)
-                else
-                    baticon:set_image(theme.widget_battery)
-                end
-                widget:set_markup(markup.font(theme.font, " " .. bat_now.perc .. "% "))
-            else
-                widget:set_markup()
-                baticon:set_image(theme.widget_ac)
-            end
-        end
-    })
+-- Check for battery presence for wibar layout visibility
+local has_battery = false
+local f = io.popen("uname")
+local _os = f:read("*all"):gsub("%s+", "")
+f:close()
+
+if _os == "Linux" then
+    has_battery = gears.filesystem.dir_readable("/sys/class/power_supply/BAT0")
+elseif _os == "FreeBSD" then
+    -- synchronous check for wibar layout stability
+    local s = io.popen("sysctl -n hw.acpi.battery.units 2>/dev/null")
+    if s then
+        local out = s:read("*all")
+        has_battery = tonumber(out) and tonumber(out) > 0
+        s:close()
+    end
+elseif _os == "OpenBSD" then
+    local s = io.popen("apm -l 2>/dev/null")
+    if s then
+        local out = s:read("*all")
+        has_battery = tonumber(out) and tonumber(out) ~= 255
+        s:close()
+    end
 end
 
 -- Net
@@ -425,7 +421,7 @@ function theme.at_screen_connect(s)
                  return wibox.container.background(wibox.container.margin(c, dpi(2), dpi(2)), seg5)
              end)(),
              has_battery and arrow(seg5, seg6) or arrow(seg5, seg_vol),
-             has_battery and wibox.container.background(wibox.container.margin(wibox.widget { baticon, bat and bat.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg6) or nil,
+             has_battery and wibox.container.background(wibox.container.margin(wibox.widget { baticon, bat, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg6) or nil,
              has_battery and arrow(seg6, seg_vol) or nil,
              wibox.container.background(wibox.container.margin(wibox.widget {
                  volicon,

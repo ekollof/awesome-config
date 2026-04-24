@@ -400,13 +400,8 @@ function theme.at_screen_connect(s)
             layout = wibox.layout.fixed.horizontal,
             -- using separators
             arrow(theme.bg_normal, seg1),
-            wibox.container.background(
-                wibox.layout.fixed.horizontal(
-                    pacman_widget and wibox.container.margin(pacman_widget, dpi(3), dpi(3)) or nil,
-                    wibox.container.margin(s.systray, dpi(6), dpi(4), dpi(2), dpi(2))
-                ),
-                seg1
-            ),
+            pacman_widget and wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(3)), seg1) or nil,
+            wibox.container.margin(s.systray, dpi(3), dpi(3), dpi(2), dpi(2)),
             arrow(seg1, theme.bg_normal),
             mpdwidget,
             arrow(theme.bg_normal, seg2),

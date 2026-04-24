@@ -238,6 +238,31 @@ awful.util.tasklist_buttons = my_table.join(
 
 
 beautiful.init(string.format("%s/.config/awesome/themes/%s/theme.lua", os.getenv("HOME"), chosen_theme))
+
+-- {{{ Systray Color Fix
+-- Communicates theme colors to symbolic icons via X11 specification
+local function set_systray_colors()
+    local fg = beautiful.fg_normal or "#ffffff"
+    local r, g, b = gears.color.parse_color(fg)
+    local r16, g16, b16 = math.floor(r * 65535), math.floor(g * 65535), math.floor(b * 65535)
+    local color_str = string.format("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+        r16, g16, b16, r16, g16, b16, r16, g16, b16, r16, g16, b16
+    )
+    
+    -- Find all tray manager windows and set the property there (where apps actually look)
+    local cmd = "xwininfo -root -tree | grep 'Awesome systray window' | sed 's/^[[:space:]]*//' | cut -d' ' -f1"
+    awful.spawn.easy_async_with_shell(cmd, function(stdout)
+        for window_id in stdout:gmatch("0x%x+") do
+            awful.spawn.with_shell(string.format("xprop -id %s -f _NET_SYSTEM_TRAY_COLORS 32c -set _NET_SYSTEM_TRAY_COLORS %s", window_id, color_str))
+        end
+        -- Also set on root as a fallback for some older apps
+        awful.spawn.with_shell("xprop -root -f _NET_SYSTEM_TRAY_COLORS 32c -set _NET_SYSTEM_TRAY_COLORS " .. color_str)
+    end)
+end
+
+-- Run once on startup/restart (delayed to ensure tray windows exist)
+gears.timer.delayed_call(set_systray_colors)
+-- }}}
 -- }}}
 
 -- {{{ Menu

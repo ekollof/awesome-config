@@ -36,6 +36,8 @@ theme.fg_normal                                 = wc.foreground  or "#FEFEFE"
 theme.fg_focus                                  = wc.color6      or "#32D6FF"
 theme.fg_urgent                                 = wc.color1      or "#C83F11"
 theme.bg_normal                                 = wc.background  or "#222222"
+theme.bg_systray                                = wc.color0      or "#333333"
+theme.systray_icon_spacing                      = dpi(2)
 theme.bg_focus                                  = wc.color0      or "#1E2320"
 theme.bg_urgent                                 = wc.color8      or "#3F3F3F"
 theme.taglist_fg_focus                          = wc.color4      or "#00CCFF"
@@ -396,9 +398,9 @@ function theme.at_screen_connect(s)
         s.mytasklist, -- Middle widget
         { -- Right widgets
             layout = wibox.layout.fixed.horizontal,
-            wibox.container.margin(s.systray, dpi(4), dpi(4), dpi(2), dpi(2)),
             -- using separators
             arrow(theme.bg_normal, seg1),
+            wibox.container.background(wibox.container.margin(s.systray, dpi(4), dpi(4), dpi(2), dpi(2)), seg1),
             pacman_widget and wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(6)), seg1) or nil,
             pacman_widget and arrow(seg1, theme.bg_normal) or nil,
             mpdwidget,

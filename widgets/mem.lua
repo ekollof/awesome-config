@@ -112,7 +112,8 @@ mem.lain = lain.widget.mem({
     settings = function()
         _now_last = mem_now
         local beautiful = require("beautiful")
-        widget:set_markup(markup.font(beautiful.font, " " .. mem_now.used .. "MB "))
+        local usage = string.format("%5d", mem_now.used)
+        widget:set_markup(markup.font(beautiful.font, " " .. usage .. "MB "))
     end
 })
 mem.widget = mem.lain.widget

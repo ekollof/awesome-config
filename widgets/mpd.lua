@@ -73,10 +73,10 @@ local function factory(args)
             end)
     end
 
-    -- Helper: format seconds as m:ss
+    -- Helper: format seconds as mm:ss
     local function fmt_time(s)
         s = tonumber(s) or 0
-        return string.format("%d:%02d", math.floor(s / 60), s % 60)
+        return string.format("%2d:%02d", math.floor(s / 60), s % 60)
     end
 
     -- lain mpd widget ----------------------------------------------------

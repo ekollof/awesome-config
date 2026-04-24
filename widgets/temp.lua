@@ -95,7 +95,7 @@ if _tempfile then
     awful.widget.watch({"cat", _tempfile}, 5, function(widget, stdout)
         local beautiful = require("beautiful")
         local val = tonumber(stdout:match("%d+"))
-        local deg = val and string.format("%.0f", val / 1e3) or "?"
+        local deg = val and string.format("%2d", math.floor(val / 1e3)) or "??"
         widget:set_markup(markup.font(beautiful.font, " " .. deg .. "°C "))
         refresh_popup_lines(function() end)
     end, temp.widget)
@@ -107,7 +107,8 @@ else
         5,
         function(widget, stdout)
             local beautiful = require("beautiful")
-            local deg = stdout:match("(%-?%d+%.?%d*)") or "?"
+            local deg_val = stdout:match("(%-?%d+%.?%d*)")
+            local deg = deg_val and string.format("%2d", math.floor(tonumber(deg_val))) or "??"
             widget:set_markup(markup.font(beautiful.font, " " .. deg .. "°C "))
         end,
         temp.widget)

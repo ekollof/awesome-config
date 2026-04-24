@@ -43,7 +43,8 @@ local function update_widget()
             else
                 battery.icon:set_image(beautiful.widget_battery)
             end
-            battery.widget:set_markup(markup.font(beautiful.font, " " .. perc .. "% "))
+            local label = string.format("%3d", perc)
+            battery.widget:set_markup(markup.font(beautiful.font, " " .. label .. "% "))
         end
     end
 

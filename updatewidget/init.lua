@@ -210,8 +210,10 @@ local function update_widget(widget)
             if #aur_pkgs > 0 then
                 label = string.format("%d+%d", #repo_pkgs, #aur_pkgs)
             else
-                label = tostring(#repo_pkgs)
+                label = string.format("%d", #repo_pkgs)
             end
+            -- Add a bit of padding to the label to reduce jitter
+            if #label < 2 then label = " " .. label end
             widget:set_markup(markup.fontfg(beautiful.font, beautiful.fg_normal,
                 " " .. GLYPH .. " " .. label .. " "))
         end

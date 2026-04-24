@@ -57,7 +57,7 @@ Segment colors are drawn from the active wallust palette so the bar always match
 | Network | rx/tx rates; hover for per-interface popup |
 | Clock | Weekday + date + time; click for calendar popup |
 | Layout box | Active layout icon; click/scroll to cycle layouts |
-| Systray | Hidden by default — `Super+-` to toggle |
+| Systray | Integrated into powerline wibar with a dedicated background segment for visibility; `Super+-` to toggle |
 
 ### Tags & Layouts
 

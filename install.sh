@@ -277,12 +277,12 @@ install_pkgs \
 
 # X11 utilities
 install_pkgs \
-    xorg-xkill xorg-xbacklight xorg-xprop xorg-xev --- \
+    xorg-xkill xorg-xbacklight xorg-xprop xorg-xwininfo xorg-xev --- \
     x11-utils x11-xserver-utils --- \
-    x11/xkill x11/xbacklight x11/xprop x11/xev --- \
-    xkill xbacklight xprop xev --- \
-    xkill xbacklight xprop xev --- \
-    xkill xbacklight xprop
+    x11/xkill x11/xbacklight x11/xprop x11/xwininfo x11/xev --- \
+    xkill xbacklight xprop xwininfo xev --- \
+    xkill xbacklight xprop xwininfo xev --- \
+    xkill xbacklight xprop xwininfo
 
 # System utilities
 # Note: 'unclutter' is replaced by 'unclutter-xfixes' on Fedora and Alpine

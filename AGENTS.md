@@ -79,6 +79,19 @@ supports prev/toggle/next/stop clicks and scroll-to-change-volume.
 AwesomeWM global) after package operations to refresh the update count
 without waiting for the next 5-minute poll.
 
+## System Tray & Symbolic Icons
+
+Modern applications (GTK3/4, Electron) often use "symbolic" icons that stay
+black if they don't detect a dark theme or receive color information from the
+tray manager. This configuration implements two fixes:
+
+1.  **Native Color Broadcast:** `rc.lua` uses `xprop` to set the
+    `_NET_SYSTEM_TRAY_COLORS` property on the AwesomeWM systray window. This
+    communicates the theme's `fg_normal` to symbolic icons.
+2.  **Powerline Integration:** The tray is integrated as a dedicated segment
+    in the powerline bar with its own background (`color0`). This ensures that
+    even if an icon remains black, it is clearly visible against the grey segment.
+
 ## Portability
 
 Shell commands in widgets must be portable to **Linux, FreeBSD, and OpenBSD**.

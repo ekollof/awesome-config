@@ -28,9 +28,16 @@ local _data = {
     mem_used  = 0,
     mem_total = 0,
     mem_perc  = 0,
+    mem_buf   = 0,
+    mem_swp_used = 0,
+    mem_swp_total = 0,
+    mem_swp_perc  = 0,
     temp      = 0,
     disk_read = 0,
     disk_write = 0,
+    zfs_arc_used = 0,
+    zfs_arc_max  = 0,
+    zfs_arc_perc = 0,
 }
 
 -- Helper for IO formatting
@@ -42,8 +49,11 @@ end
 -- Sub-widgets for popup text updates
 local cpu_header_val  = wibox.widget.textbox()
 local mem_header_val  = wibox.widget.textbox()
+local swp_header_val  = wibox.widget.textbox()
+local buf_header_val  = wibox.widget.textbox()
 local temp_header_val = wibox.widget.textbox()
 local disk_header_val = wibox.widget.textbox()
+local zfs_header_val  = wibox.widget.textbox()
 
 -- Visual Components (Graphs/Bars)
 local function create_graph(color, height, max_val, scale)
@@ -84,21 +94,35 @@ local cpu_bar = nil
 local cpu_graph = nil
 local mem_bar = nil
 local mem_graph = nil
+local swp_bar = nil
+local swp_graph = nil
+local buf_bar = nil
+local buf_graph = nil
 local temp_bar = nil
 local temp_graph = nil
 local disk_read_graph = nil
 local disk_write_graph = nil
+local zfs_bar = nil
+local zfs_graph = nil
 
 local function ensure_visuals()
     local dpi = require("beautiful.xresources").apply_dpi
     if not cpu_bar then cpu_bar = create_bar("#32D6FF") end
     if not cpu_graph then cpu_graph = create_graph("#32D6FF", dpi(40), 100, false) end
+    
     if not mem_bar then mem_bar = create_bar("#a6e3a1") end
     if not mem_graph then mem_graph = create_graph("#a6e3a1", dpi(25), 100, false) end
+    if not swp_bar then swp_bar = create_bar("#f38ba8") end
+    if not swp_graph then swp_graph = create_graph("#f38ba8", dpi(20), 100, false) end
+    if not buf_bar then buf_bar = create_bar("#89b4fa") end
+    if not buf_graph then buf_graph = create_graph("#89b4fa", dpi(20), 100, false) end
+
     if not temp_bar then temp_bar = create_bar("#fab387") end
     if not temp_graph then temp_graph = create_graph("#fab387", dpi(25), 100, false) end
     if not disk_read_graph then disk_read_graph = create_graph("#f9e2af", dpi(25), 10, true) end
     if not disk_write_graph then disk_write_graph = create_graph("#f38ba8", dpi(25), 10, true) end
+    if not zfs_bar then zfs_bar = create_bar("#cba6f7") end
+    if not zfs_graph then zfs_graph = create_graph("#cba6f7", dpi(25), 100, false) end
 end
 
 -- Data Fetching ----------------------------------------------------------
@@ -168,10 +192,14 @@ local function update_data()
         if _is_linux then
             local f = io.open("/proc/meminfo", "r")
             if f then
-                local mem_total, mem_avail
+                local mem_total, mem_avail, buf, cache, swp_total, swp_free
                 for line in f:lines() do
                     if line:match("MemTotal") then mem_total = tonumber(line:match("%d+"))
-                    elseif line:match("MemAvailable") then mem_avail = tonumber(line:match("%d+")) end
+                    elseif line:match("MemAvailable") then mem_avail = tonumber(line:match("%d+"))
+                    elseif line:match("Buffers") then buf = tonumber(line:match("%d+"))
+                    elseif line:match("Cached") then cache = tonumber(line:match("%d+"))
+                    elseif line:match("SwapTotal") then swp_total = tonumber(line:match("%d+"))
+                    elseif line:match("SwapFree") then swp_free = tonumber(line:match("%d+")) end
                 end
                 f:close()
                 if mem_total and mem_avail then
@@ -181,8 +209,63 @@ local function update_data()
                     mem_bar.value = _data.mem_perc
                     mem_graph:add_value(_data.mem_perc)
                     mem_header_val.text = _data.mem_used .. " / " .. _data.mem_total .. " MB"
+
+                    if buf and cache then
+                        _data.mem_buf = math.floor((buf + cache) / 1024)
+                        buf_bar.value = math.floor((_data.mem_buf / _data.mem_total) * 100)
+                        buf_graph:add_value(buf_bar.value)
+                        buf_header_val.text = _data.mem_buf .. " MB"
+                    end
+
+                    if swp_total and swp_total > 0 then
+                        _data.mem_swp_total = math.floor(swp_total / 1024)
+                        _data.mem_swp_used = math.floor((swp_total - swp_free) / 1024)
+                        _data.mem_swp_perc = math.floor((_data.mem_swp_used / _data.mem_swp_total) * 100)
+                        swp_bar.value = _data.mem_swp_perc
+                        swp_graph:add_value(_data.mem_swp_perc)
+                        swp_header_val.text = _data.mem_swp_used .. " / " .. _data.mem_swp_total .. " MB"
+                    else
+                        swp_header_val.text = "None"
+                    end
                 end
             end
+        else
+            -- FreeBSD/OpenBSD fallback
+            awful.spawn.easy_async_with_shell("sysctl -n hw.physmem vm.stats.vm.v_free_count vm.stats.vm.v_page_size vm.stats.vm.v_inactive_count vm.stats.vm.v_cache_count vm.swap_total vm.swap_reserved 2>/dev/null", function(out)
+                local total_s, free_s, psize_s, inact_s, cache_s, swp_t_s, swp_r_s = out:match("(%d+)\n(%d+)\n(%d+)\n(%d+)\n(%d+)\n(%d+)\n(%d+)")
+                if total_s and free_s and psize_s then
+                    local total = tonumber(total_s)
+                    local psize = tonumber(psize_s)
+                    local free  = tonumber(free_s) * psize
+                    local inact = tonumber(inact_s or 0) * psize
+                    local cache = tonumber(cache_s or 0) * psize
+
+                    _data.mem_total = math.floor(total / 1024 / 1024)
+                    _data.mem_used  = _data.mem_total - math.floor(free / 1024 / 1024)
+                    _data.mem_perc  = math.floor((_data.mem_used / _data.mem_total) * 100)
+                    mem_bar.value = _data.mem_perc
+                    mem_graph:add_value(_data.mem_perc)
+                    mem_header_val.text = _data.mem_used .. " / " .. _data.mem_total .. " MB"
+
+                    _data.mem_buf = math.floor((inact + cache) / 1024 / 1024)
+                    buf_bar.value = math.floor((_data.mem_buf / _data.mem_total) * 100)
+                    buf_graph:add_value(buf_bar.value)
+                    buf_header_val.text = _data.mem_buf .. " MB"
+
+                    local swp_t = tonumber(swp_t_s or 0)
+                    local swp_r = tonumber(swp_r_s or 0)
+                    if swp_t > 0 then
+                        _data.mem_swp_total = math.floor(swp_t / 1024 / 1024)
+                        _data.mem_swp_used = math.floor(swp_r / 1024 / 1024)
+                        _data.mem_swp_perc = math.floor((_data.mem_swp_used / _data.mem_swp_total) * 100)
+                        swp_bar.value = _data.mem_swp_perc
+                        swp_graph:add_value(_data.mem_swp_perc)
+                        swp_header_val.text = _data.mem_swp_used .. " / " .. _data.mem_swp_total .. " MB"
+                    else
+                        swp_header_val.text = "None"
+                    end
+                end
+            end)
         end
 
         -- 3. Temp
@@ -235,6 +318,46 @@ local function update_data()
             end
         end
 
+        -- 5. ZFS ARC
+        if _is_linux then
+            local zf = io.open("/proc/spl/kstat/zfs/arcstats", "r")
+            if zf then
+                local size, c_max
+                for line in zf:lines() do
+                    if line:match("^size") then size = tonumber(line:match("%d+"))
+                    elseif line:match("^c_max") then c_max = tonumber(line:match("%d+")) end
+                end
+                zf:close()
+                if size and c_max then
+                    _data.zfs_arc_used = math.floor(size / 1024 / 1024)
+                    _data.zfs_arc_max = math.floor(c_max / 1024 / 1024)
+                    _data.zfs_arc_perc = math.floor((size / c_max) * 100)
+                    zfs_bar.value = _data.zfs_arc_perc
+                    zfs_graph:add_value(_data.zfs_arc_perc)
+                    zfs_header_val.text = _data.zfs_arc_used .. " / " .. _data.zfs_arc_max .. " MB"
+                end
+            end
+        else
+            -- FreeBSD: kstat.zfs.misc.arcstats.size and c_max
+            awful.spawn.easy_async_with_shell("sysctl -n vfs.zfs.arc.size vfs.zfs.arc.max 2>/dev/null || sysctl -n kstat.zfs.misc.arcstats.size kstat.zfs.misc.arcstats.c_max 2>/dev/null", function(out)
+                local size_s, c_max_s = out:match("(%d+)%s+(%d+)")
+                if not size_s then -- Try one per line
+                    size_s, c_max_s = out:match("(%d+)\n(%d+)")
+                end
+                
+                if size_s and c_max_s then
+                    local size = tonumber(size_s)
+                    local c_max = tonumber(c_max_s)
+                    _data.zfs_arc_used = math.floor(size / 1024 / 1024)
+                    _data.zfs_arc_max = math.floor(c_max / 1024 / 1024)
+                    _data.zfs_arc_perc = math.floor((size / c_max) * 100)
+                    zfs_bar.value = _data.zfs_arc_perc
+                    zfs_graph:add_value(_data.zfs_arc_perc)
+                    zfs_header_val.text = _data.zfs_arc_used .. " / " .. _data.zfs_arc_max .. " MB"
+                end
+            end)
+        end
+
         -- Update all wibar text
         for _, update_func in ipairs(sysmon._wibar_updates) do
             update_func(_data, font, fg)
@@ -271,6 +394,9 @@ local function build_popup_rows()
         spacing = dpi(15),
         section("CPU Usage", cpu_header_val, cpu_bar, cpu_graph),
         section("Memory", mem_header_val, mem_bar, mem_graph),
+        section("Swap", swp_header_val, swp_bar, swp_graph),
+        section("Buffers/Cache", buf_header_val, buf_bar, buf_graph),
+        section("ZFS ARC", zfs_header_val, zfs_bar, zfs_graph),
         section("Temperature", temp_header_val, temp_bar, temp_graph),
         { -- Disk I/O
             {

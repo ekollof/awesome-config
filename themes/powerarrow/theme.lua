@@ -10,7 +10,6 @@ local lain  = require("lain")
 local awful   = require("awful")
 local wibox   = require("wibox")
 local naughty = require("naughty")
-local beautiful = require("beautiful")
 local updates = require("updatewidget")
 -- update_widget_hook is a global called by the pacman alpm hook on Arch.
 -- It is harmless on other distros (no hook fires, the function just never runs).
@@ -253,7 +252,13 @@ net_widget.widget:connect_signal("mouse::enter", net_widget.popup_show)
 neticon:connect_signal("mouse::leave", net_widget.popup_hide)
 net_widget.widget:connect_signal("mouse::leave", net_widget.popup_hide)
 -- System Monitor
-local sysmon = require("widgets.sysmon")
+local sysmon
+local sysmon_ok, sysmon_mod = pcall(require, "widgets.sysmon")
+if sysmon_ok then
+    sysmon = sysmon_mod
+else
+    sysmon = { create = function() return wibox.widget.textbox("sysmon error") end }
+end
 -- Uptime
 local uptime_widget = require("widgets.uptime")
 uptime_widget.attach(60)
@@ -265,7 +270,7 @@ local weather_placeholders = {}   -- parallel list of placeholder textboxes, hid
 
 local function make_weather_widget()
     if not weather_args then return nil end
-    local font_name = beautiful.font and beautiful.font:gsub("%s%d+$", "") or "sans"
+    local font_name = theme.font and theme.font:gsub("%s%d+$", "") or "sans"
     return weather_api({
         api_key                = weather_args.api_key,
         coordinates            = weather_args.coordinates,
@@ -396,7 +401,7 @@ function theme.at_screen_connect(s)
             arrow(seg1, theme.bg_normal),
             mpdwidget,
             arrow(theme.bg_normal, seg2),
-            wibox.container.background(sysmon.widget, seg2),
+            wibox.container.background(sysmon.create(), seg2),
             arrow(seg2, seg5),
              (function()
                  local placeholder = wibox.widget {
@@ -418,7 +423,7 @@ function theme.at_screen_connect(s)
                  layout = wibox.layout.fixed.horizontal,
              }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
              arrow(seg_vol, seg7),
-            wibox.container.background(wibox.container.margin(wibox.widget { nil, neticon, net_widget.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
+            wibox.container.background(wibox.container.margin(wibox.widget { neticon, net_widget.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
             arrow(seg7, seg1),
             wibox.container.background(wibox.container.margin(uptime_widget.widget, dpi(4), dpi(4)), seg1),
             arrow(seg1, seg2),

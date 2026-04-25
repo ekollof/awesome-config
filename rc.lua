@@ -263,7 +263,6 @@ end
 -- Run once on startup/restart (delayed to ensure tray windows exist)
 gears.timer.delayed_call(set_systray_colors)
 -- }}}
--- }}}
 
 -- {{{ Menu
 local myawesomemenu = {

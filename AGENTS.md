@@ -144,7 +144,8 @@ any package is not found.
   one parent in AwesomeWM.
 - **Debug logging** should use `io.open` file-based logging, not
   `awesome-client`, since async callbacks make client-based debugging unreliable.
-- CPU temperature is at `/sys/class/hwmon/hwmon4/temp1_input` (zenpower, millidegrees C).
+- System metrics (CPU, Memory, Temperature, Disk I/O) are handled by the consolidated
+  `widgets/sysmon.lua` dashboard.
 - No battery on this system — battery widget is conditionally hidden via
   `has_battery` check on `/sys/class/power_supply/BAT*`.
 

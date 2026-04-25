@@ -37,9 +37,9 @@ source on Debian/Ubuntu/Fedora, and installs the pacman update hook on Arch.
  
 A single 32px top bar on each monitor with powerline arrow separators.
 Segment colors are drawn from the active wallust palette so the bar always matches the wallpaper.
-
+ 
 **Left → Right:**
-
+ 
 | Widget | Description |
 |---|---|
 | Taglist | 9 tags (➊–➒); click to switch, scroll to cycle, `Super+click` to move client |
@@ -48,17 +48,24 @@ Segment colors are drawn from the active wallust palette so the bar always match
 | *(spacer)* | |
 | Update counter | Pending package count (`N` or `N+M` repo+AUR); hover for full package list; auto-updates on every package transaction (pacman hook) |
 | MPD | Artist · Title; click prev/toggle/next/stop; scroll to adjust volume |
-| Memory | RAM usage %; hover shows breakdown, ZFS ARC size, and top-10 processes by RSS |
-| CPU | Usage %; hover shows per-core breakdown |
-| Temperature | CPU temp (°C); reads from zenpower hwmon |
+| System Monitor | Combined CPU%, RAM (MB), and Temp (°C); **hover for dashboard** |
 | Weather | Current conditions + icon; key stored in `pass`; hover for forecast |
 | Battery | Charge % + status icon; hidden automatically on systems with no battery |
 | Volume | Dynamic icon (mute/low/normal) + bar; scroll ±2%, click to toggle mute |
 | Network | rx/tx rates; hover for per-interface popup |
+| Uptime | Time since boot (e.g. `7h 45m`) |
 | Clock | Weekday + date + time; click for calendar popup |
 | Layout box | Active layout icon; click/scroll to cycle layouts |
 | Systray | Integrated into powerline wibar with a dedicated background segment for visibility; `Super+-` to toggle |
-
+ 
+### Dashboard
+ 
+Hovering over the **System Monitor** segment reveals a rich visual dashboard featuring:
+- **CPU**: Real-time load graph and usage percentage.
+- **Memory**: Usage bar, history graph, and MB breakdown.
+- **Temperature**: Heat trend graph and current degree status.
+- **Disk I/O**: Dedicated Read/Write throughput graphs (Linux only).
+ 
 ### Tags & Layouts
 
 9 tags per screen (➊–➒). Available layouts in cycle order:
@@ -257,6 +264,12 @@ Core runtime dependencies installed by `install.sh`:
 ├── rc.lua                        # Main config
 ├── themes/powerarrow/theme.lua   # Wibar, widgets, colors
 ├── updatewidget/                 # Multi-distro update counter
+├── widgets/
+│   ├── sysmon.lua                # Consolidated CPU/Mem/Temp/Disk dashboard
+│   ├── uptime.lua                # Portable uptime widget
+│   ├── net.lua                   # Network traffic widget
+│   ├── battery.lua               # Portable battery widget
+│   └── mpd.lua                   # MPD player widget
 ├── scripts/
 │   ├── lock.sh                   # i3lock-color screen locker
 │   ├── build-i3lock-color.sh     # Build i3lock-color from source

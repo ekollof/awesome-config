@@ -116,14 +116,27 @@ local function update()
                     raw[dev] = { rx = rx, tx = tx, carrier = carrier, extra = extra }
                 end
             else
-                -- BSD: parse netstat -ibn; use first (link-level) row per interface
-                local seen = {}
+                -- BSD: parse netstat -ibn
                 for line in out:gmatch("[^\n]+") do
-                    local name, ibytes, obytes = line:match(
-                        "^(%S+)%s+%S+%s+%S+%s+%S+%s+%d+%s+%d+%s+(%d+)%s+%d+%s+%d+%s+(%d+)")
-                    if name and ibytes and obytes and not seen[name] and not name:match("^lo") then
-                        seen[name] = true
-                        raw[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1", extra = "" }
+                    -- Split by whitespace
+                    local fields = {}
+                    for f in line:gmatch("%S+") do table.insert(fields, f) end
+
+                    -- We want the <Link> row (Address usually starts with a MAC or <Link)
+                    -- FreeBSD: Name(1) Mtu(2) Network(3) Address(4) Ipkts(5) Ierrs(6) Idrop(7) Ibytes(8) ... Obytes(11)
+                    -- OpenBSD: Name(1) Mtu(2) Network(3) Address(4) Ipkts(5) Ierrs(6) Ibytes(7) ... Obytes(10)
+                    local name = fields[1]
+                    if name and not name:match("^lo") and fields[3] and fields[3]:match("Link") then
+                        local ibytes, obytes
+                        if #fields >= 11 then -- FreeBSD style with Idrop
+                            ibytes, obytes = fields[8], fields[11]
+                        elseif #fields >= 10 then -- OpenBSD style
+                            ibytes, obytes = fields[7], fields[10]
+                        end
+
+                        if ibytes and obytes then
+                            raw[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1", extra = "" }
+                        end
                     end
                 end
             end
@@ -170,7 +183,34 @@ local function update()
             -- sysfs reads are synchronous; no subprocess needed
             process(nil)
         else
-            awful.spawn.easy_async_with_shell("netstat -ibn 2>/dev/null", process)
+            -- BSD: get bytes and then fetch extra info per-interface
+            awful.spawn.easy_async_with_shell("netstat -ibn 2>/dev/null", function(out)
+                process(out)
+                
+                -- After processing base bytes, try to get extra info for each active device
+                for dev, _ in pairs(net.devices) do
+                    local cmd = string.format("ifconfig %s 2>/dev/null", dev)
+                    awful.spawn.easy_async_with_shell(cmd, function(ifout)
+                        local extra = ""
+                        -- Link Speed
+                        local speed = ifout:match("media: Ethernet autoselect %((%d+baseT)")
+                                   or ifout:match("media: Ethernet (%d+baseT)")
+                        if speed then 
+                            extra = speed:gsub("baseT", "") .. " Mb/s"
+                        end
+                        
+                        -- Wireless (SSID/NWID)
+                        local ssid = ifout:match("ssid (%S+)") or ifout:match("nwid (%S+)")
+                        if ssid then
+                            extra = (extra ~= "" and (extra .. " ") or "") .. "SSID: " .. ssid
+                        end
+                        
+                        if extra ~= "" and net.devices[dev] then
+                            net.devices[dev].extra = extra
+                        end
+                    end)
+                end
+            end)
         end
     end)
 end

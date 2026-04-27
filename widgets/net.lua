@@ -183,32 +183,44 @@ local function update()
             -- sysfs reads are synchronous; no subprocess needed
             process(nil)
         else
-            -- BSD: get bytes and then fetch extra info per-interface
-            awful.spawn.easy_async_with_shell("netstat -ibn 2>/dev/null", function(out)
-                process(out)
-                
-                -- After processing base bytes, try to get extra info for each active device
-                for dev, _ in pairs(net.devices) do
-                    local cmd = string.format("ifconfig %s 2>/dev/null", dev)
-                    awful.spawn.easy_async_with_shell(cmd, function(ifout)
-                        local extra = ""
-                        -- Link Speed
-                        local speed = ifout:match("media: Ethernet autoselect %((%d+baseT)")
-                                   or ifout:match("media: Ethernet (%d+baseT)")
-                        if speed then 
-                            extra = speed:gsub("baseT", "") .. " Mb/s"
+            -- BSD: Optimized single-pass data collection
+            -- We get bytes from netstat and media/SSID from ifconfig in one shell execution
+            local cmd = "netstat -ibn; ifconfig -a"
+            awful.spawn.easy_async_with_shell(cmd, function(out)
+                -- 1. Split the output into netstat and ifconfig sections
+                local netstat_out, ifconfig_out = out:match("(Name.-)\n(.*)")
+                if not netstat_out then netstat_out = out end -- Fallback
+
+                -- 2. Process byte counts
+                process(netstat_out)
+
+                -- 3. Parse ifconfig -a for all interfaces at once
+                if ifconfig_out then
+                    local current_dev = nil
+                    for line in ifconfig_out:gmatch("[^\n]+") do
+                        local dev = line:match("^(%S+):")
+                        if dev then
+                            current_dev = dev
+                        elseif current_dev and net.devices[current_dev] then
+                            local extra = ""
+                            -- Speed
+                            local speed = line:match("media: Ethernet autoselect %((%d+baseT)")
+                                       or line:match("media: Ethernet (%d+baseT)")
+                            if speed then 
+                                extra = speed:gsub("baseT", "") .. " Mb/s"
+                            end
+                            
+                            -- Wireless
+                            local ssid = line:match("ssid (%S+)") or line:match("nwid (%S+)")
+                            if ssid then
+                                extra = (extra ~= "" and (extra .. " ") or "") .. "SSID: " .. ssid
+                            end
+
+                            if extra ~= "" then
+                                net.devices[current_dev].extra = extra
+                            end
                         end
-                        
-                        -- Wireless (SSID/NWID)
-                        local ssid = ifout:match("ssid (%S+)") or ifout:match("nwid (%S+)")
-                        if ssid then
-                            extra = (extra ~= "" and (extra .. " ") or "") .. "SSID: " .. ssid
-                        end
-                        
-                        if extra ~= "" and net.devices[dev] then
-                            net.devices[dev].extra = extra
-                        end
-                    end)
+                    end
                 end
             end)
         end

@@ -23,8 +23,25 @@ local net = {
 }
 
 local _prev      = {}   -- [dev] = { rx=n, tx=n }
+local _graphs    = {}   -- [dev] = { rx=graph, tx=graph }
 local _ifaces    = nil  -- cached list, populated on first poll
 local _timeout   = 2
+
+local function create_graph(color)
+    return wibox.widget {
+        max_value = 10,
+        scale = true,
+        background_color = "#333333",
+        border_width = 1,
+        border_color = "#444444",
+        color = color,
+        width = dpi(180),
+        height = dpi(25),
+        step_width = dpi(2),
+        step_spacing = 1,
+        widget = wibox.widget.graph
+    }
+end
 
 local function fmt(kb)
     if kb >= 1024 then return string.format("%5.1f M", kb / 1024)
@@ -122,6 +139,16 @@ local function update()
                 local tx_kb = dtx / _timeout / 1024
                 total_rx    = total_rx + rx_kb
                 total_tx    = total_tx + tx_kb
+
+                if not _graphs[dev] then
+                    _graphs[dev] = {
+                        rx = create_graph("#f9e2af"), -- Yellow-ish for RX
+                        tx = create_graph("#f38ba8"), -- Red-ish for TX
+                    }
+                end
+                _graphs[dev].rx:add_value(rx_kb)
+                _graphs[dev].tx:add_value(tx_kb)
+
                 devices[dev] = {
                     carrier  = cur.carrier,
                     received = fmt(rx_kb),
@@ -164,24 +191,48 @@ local function build_popup_widget()
     table.sort(devs)
     for _, dev in ipairs(devs) do
         local d = net.devices[dev]
+        local g = _graphs[dev]
         local state_color = d.carrier == "1" and "#a6e3a1" or "#f38ba8"
         local state       = d.carrier == "1" and "up" or "down"
         local info_txt    = d.extra ~= "" and ("  <span color='#f9e2af'>" .. d.extra .. "</span>") or ""
+        
         rows:add(wibox.widget {
-            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, "<b>" .. dev .. "</b>") .. info_txt,
-              widget = wibox.widget.textbox, forced_width = dpi(220) },
-            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal .. "99", "↓ "),
-              widget = wibox.widget.textbox },
-            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, string.format("%8s", d.received or "0")),
-              widget = wibox.widget.textbox, forced_width = dpi(80) },
-            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal .. "99", "↑ "),
-              widget = wibox.widget.textbox },
-            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, string.format("%8s", d.sent or "0")),
-              widget = wibox.widget.textbox, forced_width = dpi(80) },
-            { markup = markup.fontfg(beautiful.font, state_color, "  " .. state),
-              widget = wibox.widget.textbox },
-            layout = wibox.layout.fixed.horizontal,
+            {
+                { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, "<b>" .. dev .. "</b>") .. info_txt,
+                  widget = wibox.widget.textbox, forced_width = dpi(220) },
+                { markup = markup.fontfg(beautiful.font, beautiful.fg_normal .. "99", "↓ "),
+                  widget = wibox.widget.textbox },
+                { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, string.format("%8s", d.received or "0")),
+                  widget = wibox.widget.textbox, forced_width = dpi(80) },
+                { markup = markup.fontfg(beautiful.font, beautiful.fg_normal .. "99", "↑ "),
+                  widget = wibox.widget.textbox },
+                { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, string.format("%8s", d.sent or "0")),
+                  widget = wibox.widget.textbox, forced_width = dpi(80) },
+                { markup = markup.fontfg(beautiful.font, state_color, "  " .. state),
+                  widget = wibox.widget.textbox },
+                layout = wibox.layout.fixed.horizontal,
+            },
+            {
+                {
+                    { text = "RX ", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font 8" },
+                    g and g.rx or wibox.widget.textbox("N/A"),
+                    layout = wibox.layout.fixed.horizontal,
+                    spacing = dpi(5)
+                },
+                {
+                    { text = "TX ", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font 8" },
+                    g and g.tx or wibox.widget.textbox("N/A"),
+                    layout = wibox.layout.fixed.horizontal,
+                    spacing = dpi(5)
+                },
+                layout = wibox.layout.flex.horizontal,
+                spacing = dpi(10)
+            },
+            layout = wibox.layout.fixed.vertical,
+            spacing = dpi(5)
         })
+        -- Add a separator margin between interfaces
+        rows:add(wibox.container.margin(wibox.widget.base.make_widget(), 0, 0, 0, dpi(5)))
     end
     return wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8))
 end
@@ -194,13 +245,13 @@ function net.popup_show()
     local awful_mod = require("awful")
     local s  = awful_mod.screen.focused()
     local wb = s.mywibox
-    local px = math.min(mouse.coords().x, s.geometry.x + s.geometry.width - dpi(370))
+    local px = math.min(mouse.coords().x, s.geometry.x + s.geometry.width - dpi(510))
     local py = wb and (wb.y + wb.height + dpi(8)) or dpi(30)
     _popup = awful_mod.popup {
         widget = w, x = px, y = py,
         bg = beautiful.bg_normal, border_width = dpi(1), border_color = beautiful.border_focus,
         ontop = true, visible = true, screen = s,
-        forced_width = dpi(420)
+        forced_width = dpi(500)
     }
     _popup_timer = gears.timer {
         timeout = _timeout, autostart = true,

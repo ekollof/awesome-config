@@ -77,7 +77,26 @@ local function update()
                     if rx_f      then rx_f:close()      end
                     if tx_f      then tx_f:close()      end
                     if carrier_f then carrier_f:close() end
-                    raw[dev] = { rx = rx, tx = tx, carrier = carrier }
+
+                    -- Fetch extra info (Linux)
+                    local extra = ""
+                    if dev:match("^wl") then
+                        local f = io.popen("iwgetid " .. dev .. " -r 2>/dev/null")
+                        if f then
+                            local ssid = f:read("*l")
+                            f:close()
+                            if ssid then extra = "SSID: " .. ssid end
+                        end
+                    else
+                        local f = io.open("/sys/class/net/" .. dev .. "/speed", "r")
+                        if f then
+                            local speed = f:read("*l")
+                            f:close()
+                            if speed and speed ~= "-1" then extra = speed .. " Mb/s" end
+                        end
+                    end
+
+                    raw[dev] = { rx = rx, tx = tx, carrier = carrier, extra = extra }
                 end
             else
                 -- BSD: parse netstat -ibn; use first (link-level) row per interface
@@ -87,7 +106,7 @@ local function update()
                         "^(%S+)%s+%S+%s+%S+%s+%S+%s+%d+%s+%d+%s+(%d+)%s+%d+%s+%d+%s+(%d+)")
                     if name and ibytes and obytes and not seen[name] and not name:match("^lo") then
                         seen[name] = true
-                        raw[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1" }
+                        raw[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1", extra = "" }
                     end
                 end
             end
@@ -107,6 +126,7 @@ local function update()
                     carrier  = cur.carrier,
                     received = fmt(rx_kb),
                     sent     = fmt(tx_kb),
+                    extra    = cur.extra,
                 }
                 _prev[dev] = { rx = cur.rx, tx = cur.tx }
             end
@@ -146,9 +166,10 @@ local function build_popup_widget()
         local d = net.devices[dev]
         local state_color = d.carrier == "1" and "#a6e3a1" or "#f38ba8"
         local state       = d.carrier == "1" and "up" or "down"
+        local info_txt    = d.extra ~= "" and ("  <span color='#f9e2af'>" .. d.extra .. "</span>") or ""
         rows:add(wibox.widget {
-            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, "<b>" .. dev .. "</b>"),
-              widget = wibox.widget.textbox, forced_width = dpi(100) },
+            { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, "<b>" .. dev .. "</b>") .. info_txt,
+              widget = wibox.widget.textbox, forced_width = dpi(220) },
             { markup = markup.fontfg(beautiful.font, beautiful.fg_normal .. "99", "↓ "),
               widget = wibox.widget.textbox },
             { markup = markup.fontfg(beautiful.font, beautiful.fg_normal, string.format("%8s", d.received or "0")),
@@ -179,6 +200,7 @@ function net.popup_show()
         widget = w, x = px, y = py,
         bg = beautiful.bg_normal, border_width = dpi(1), border_color = beautiful.border_focus,
         ontop = true, visible = true, screen = s,
+        forced_width = dpi(420)
     }
     _popup_timer = gears.timer {
         timeout = _timeout, autostart = true,

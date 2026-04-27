@@ -246,7 +246,7 @@ elseif _os == "OpenBSD" then
 end
 -- Net
 local net_widget = require("widgets.net")
-local neticon    = wibox.widget.imagebox(theme.widget_net)
+local neticon    = wibox.widget.textbox(" 󰲝 ")
 neticon:connect_signal("mouse::enter", net_widget.popup_show)
 net_widget.widget:connect_signal("mouse::enter", net_widget.popup_show)
 neticon:connect_signal("mouse::leave", net_widget.popup_hide)

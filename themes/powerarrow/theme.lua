@@ -277,7 +277,7 @@ local function make_weather_widget()
         units                  = "metric",
         lang                   = "en",
         font_name              = font_name,
-        timeout                = 600,
+        timeout                = 300,
         show_forecast_on_hover = weather_args.show_forecast_on_hover,
         show_daily_forecast    = weather_args.show_daily_forecast,
         location               = weather_args.location,

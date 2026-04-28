@@ -14,7 +14,7 @@ local updates = require("updatewidget")
 -- update_widget_hook is a global called by the pacman alpm hook on Arch.
 -- It is harmless on other distros (no hook fires, the function just never runs).
 update_widget_hook = function() updates.hook() end
-local weather_api = require("awesome-wm-widgets.weather-api-widget.weather")
+local weather_api = require("widgets.weather")
 local dpi     = require("beautiful.xresources").apply_dpi
 
 local math, string, os = math, string, os

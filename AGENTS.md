@@ -39,7 +39,6 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 |---|---|---|
 | `lain/` | https://github.com/lcpz/lain | Widget library (MPD, mem, cpu, net, cal, separators) |
 | `freedesktop/` | https://github.com/lcpz/awesome-freedesktop | Right-click app menu from .desktop files |
-| `awesome-wm-widgets/` | https://github.com/streetturtle/awesome-wm-widgets | Weather widget (`weather-api-widget/` only used) |
 | `updatewidget/` | vendored (based on raksooo/pacmanwidget, heavily modified) | Multi-distro update count — not a submodule |
 
 ## Wallust integration

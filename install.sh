@@ -177,7 +177,7 @@ install_pkgs() {
 
 # ── submodules ─────────────────────────────────────────────────────────────────
 
-info "Initialising git submodules (lain, freedesktop, awesome-wm-widgets)..."
+info "Initialising git submodules (lain, freedesktop)..."
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$REPO_DIR/.gitmodules" ]]; then
     run git -C "$REPO_DIR" submodule update --init --recursive

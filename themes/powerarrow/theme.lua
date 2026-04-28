@@ -279,6 +279,7 @@ local function make_weather_widget()
         font_name              = font_name,
         timeout                = 600,
         show_forecast_on_hover = true,
+        location               = weather_args.location,
     })
 end
 
@@ -299,13 +300,27 @@ awful.spawn.easy_async_with_shell(
         api_key = api_key:gsub("%s+$", "")
         if not api_key or api_key == "" then return end
         awful.spawn.easy_async_with_shell(
-            "curl -s 'https://ipapi.co/json/' | grep -E '\"latitude\"|\"longitude\"' | awk -F': ' '{print $2}' | tr -d ','",
+            "curl -s 'https://ipapi.co/json/'",
             function(stdout)
-                local coords = {}
-                for v in stdout:gmatch("[%d%.]+") do coords[#coords+1] = tonumber(v) end
-                if #coords >= 2 then
-                    weather_args = { api_key = api_key, coordinates = { coords[1], coords[2] },
-                                     show_forecast_on_hover = true }
+                local json = require("json")
+                local ok, geo = pcall(json.decode, stdout)
+                if not ok or not geo then return end
+                local lat = tonumber(geo.latitude)
+                local lon = tonumber(geo.longitude)
+                if lat and lon then
+                    local loc_name = geo.city or ""
+                    if geo.region and geo.region ~= "" then
+                        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.region
+                    end
+                    if geo.country_name and geo.country_name ~= "" then
+                        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.country_name
+                    end
+                    weather_args = {
+                        api_key = api_key,
+                        coordinates = { lat, lon },
+                        show_forecast_on_hover = true,
+                        location = loc_name ~= "" and loc_name or nil,
+                    }
                     populate_weather_containers()
                 end
             end

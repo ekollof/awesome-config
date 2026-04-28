@@ -12,6 +12,7 @@ local markup    = require("lain.util").markup
 local sysmon = {
     _wibar_updates = {}
 }
+sysmon._zfs_available = false
 
 -- Logging Helper ---------------------------------------------------------
 local function log(msg)
@@ -121,8 +122,10 @@ local function ensure_visuals()
     if not temp_graph then temp_graph = create_graph("#fab387", dpi(25), 100, false) end
     if not disk_read_graph then disk_read_graph = create_graph("#f9e2af", dpi(25), 10, true) end
     if not disk_write_graph then disk_write_graph = create_graph("#f38ba8", dpi(25), 10, true) end
-    if not zfs_bar then zfs_bar = create_bar("#cba6f7") end
-    if not zfs_graph then zfs_graph = create_graph("#cba6f7", dpi(25), 100, false) end
+    if sysmon._zfs_available then
+        if not zfs_bar then zfs_bar = create_bar("#cba6f7") end
+        if not zfs_graph then zfs_graph = create_graph("#cba6f7", dpi(25), 100, false) end
+    end
 end
 
 -- Data Fetching ----------------------------------------------------------
@@ -329,6 +332,7 @@ local function update_data()
                 end
                 zf:close()
                 if size and c_max then
+                    sysmon._zfs_available = true
                     _data.zfs_arc_used = math.floor(size / 1024 / 1024)
                     _data.zfs_arc_max = math.floor(c_max / 1024 / 1024)
                     _data.zfs_arc_perc = math.floor((size / c_max) * 100)
@@ -346,6 +350,7 @@ local function update_data()
                 end
                 
                 if size_s and c_max_s then
+                    sysmon._zfs_available = true
                     local size = tonumber(size_s)
                     local c_max = tonumber(c_max_s)
                     _data.zfs_arc_used = math.floor(size / 1024 / 1024)
@@ -389,42 +394,45 @@ local function build_popup_rows()
         }
     end
 
-    return wibox.widget {
+    local rows = {
         layout = wibox.layout.fixed.vertical,
         spacing = dpi(15),
         section("CPU Usage", cpu_header_val, cpu_bar, cpu_graph),
         section("Memory", mem_header_val, mem_bar, mem_graph),
         section("Swap", swp_header_val, swp_bar, swp_graph),
         section("Buffers/Cache", buf_header_val, buf_bar, buf_graph),
-        section("ZFS ARC", zfs_header_val, zfs_bar, zfs_graph),
-        section("Temperature", temp_header_val, temp_bar, temp_graph),
-        { -- Disk I/O
-            {
-                { text = "Disk I/O", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font Bold 11" },
-                nil,
-                disk_header_val,
-                layout = wibox.layout.align.horizontal,
-            },
-            {
-                {
-                    { text = "READ", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font 8" },
-                    disk_read_graph,
-                    layout = wibox.layout.fixed.vertical,
-                    spacing = dpi(2)
-                },
-                {
-                    { text = "WRITE", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font 8" },
-                    disk_write_graph,
-                    layout = wibox.layout.fixed.vertical,
-                    spacing = dpi(2)
-                },
-                layout = wibox.layout.flex.horizontal,
-                spacing = dpi(10)
-            },
-            layout = wibox.layout.fixed.vertical,
-            spacing = dpi(5)
-        }
     }
+    if sysmon._zfs_available then
+        table.insert(rows, section("ZFS ARC", zfs_header_val, zfs_bar, zfs_graph))
+    end
+    table.insert(rows, section("Temperature", temp_header_val, temp_bar, temp_graph))
+    table.insert(rows, { -- Disk I/O
+        {
+            { text = "Disk I/O", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font Bold 11" },
+            nil,
+            disk_header_val,
+            layout = wibox.layout.align.horizontal,
+        },
+        {
+            {
+                { text = "READ", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font 8" },
+                disk_read_graph,
+                layout = wibox.layout.fixed.vertical,
+                spacing = dpi(2)
+            },
+            {
+                { text = "WRITE", widget = wibox.widget.textbox, font = "BerkeleyMono Nerd Font 8" },
+                disk_write_graph,
+                layout = wibox.layout.fixed.vertical,
+                spacing = dpi(2)
+            },
+            layout = wibox.layout.flex.horizontal,
+            spacing = dpi(10)
+        },
+        layout = wibox.layout.fixed.vertical,
+        spacing = dpi(5)
+    })
+    return wibox.widget(rows)
 end
 
 local function show_popup()

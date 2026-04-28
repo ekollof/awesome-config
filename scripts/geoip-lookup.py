@@ -15,9 +15,29 @@ MMDB_PATH = os.path.join(
 
 
 def get_public_ip():
-    """Get the public-facing IP address."""
+    """Get the public-facing IP address.
+
+    Tries external IP discovery services first (works through NAT).
+    Falls back to the routing table only as a last resort — that src IP
+    is often a private address on NATed desktops (10.x/192.168.x).
+    """
+    # 1. External services (accurate through NAT)
+    for url in ("https://icanhazip.com", "https://checkip.amazonaws.com"):
+        try:
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                ip = resp.read().decode().strip()
+                # Sanity check: ignore private/reserved
+                if ip and not ip.startswith(("10.", "192.168.", "172.16.", "172.17.",
+                                              "172.18.", "172.19.", "172.20.", "172.21.",
+                                              "172.22.", "172.23.", "172.24.", "172.25.",
+                                              "172.26.", "172.27.", "172.28.", "172.29.",
+                                              "172.30.", "172.31.", "127.")):
+                    return ip
+        except Exception:
+            pass
+
+    # 2. Fallback to routing table (may be private behind NAT, but try anyway)
     try:
-        # Try to get the source IP for an internet route
         result = subprocess.run(
             ["ip", "route", "get", "1.1.1.1"],
             capture_output=True, text=True, timeout=5
@@ -26,19 +46,6 @@ def get_public_ip():
             parts = result.stdout.strip().split()
             if "src" in parts:
                 return parts[parts.index("src") + 1]
-    except Exception:
-        pass
-
-    # Fallback: use a simple HTTP service
-    try:
-        with urllib.request.urlopen("https://icanhazip.com", timeout=10) as resp:
-            return resp.read().decode().strip()
-    except Exception:
-        pass
-
-    try:
-        with urllib.request.urlopen("https://ipapi.co/ip/", timeout=10) as resp:
-            return resp.read().decode().strip()
     except Exception:
         pass
 

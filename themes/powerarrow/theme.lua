@@ -279,6 +279,7 @@ local function make_weather_widget()
         font_name              = font_name,
         timeout                = 600,
         show_forecast_on_hover = true,
+        show_daily_forecast    = true,
         location               = weather_args.location,
     })
 end

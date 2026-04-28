@@ -268,45 +268,61 @@ local function worker(user_args)
         },
         {
             {
-                {
-                    id = 'temp',
-                    font = font_name .. ' 36',
-                    widget = wibox.widget.textbox
-                },
-                {
-                    id = 'feels_like_temp',
-                    align = 'center',
-                    font = font_name .. ' 9',
-                    widget = wibox.widget.textbox
-                },
-                layout = wibox.layout.fixed.vertical
+                id = 'temp',
+                font = font_name .. ' 36',
+                widget = wibox.widget.textbox
             },
             {
-                {
-                    id = 'wind',
-                    font = font_name .. ' 9',
-                    widget = wibox.widget.textbox
-                },
-                {
-                    id = 'humidity',
-                    font = font_name .. ' 9',
-                    widget = wibox.widget.textbox
-                },
-                {
-                    id = 'uv',
-                    font = font_name .. ' 9',
-                    widget = wibox.widget.textbox
-                },
-                expand = 'inside',
-                layout = wibox.layout.align.vertical
+                id = 'feels_like_temp',
+                align = 'center',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
             },
-            spacing = 16,
-            forced_width = 150,
+            {
+                id = 'precip',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            {
+                id = 'rain',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            spacing = 4,
             layout = wibox.layout.fixed.vertical
         },
-        forced_width = 300,
+        {
+            {
+                id = 'wind',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            {
+                id = 'humidity',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            {
+                id = 'uv',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            {
+                id = 'sunrise',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            {
+                id = 'sunset',
+                font = font_name .. ' 9',
+                widget = wibox.widget.textbox
+            },
+            expand = 'inside',
+            layout = wibox.layout.align.vertical
+        },
+        forced_width = 340,
         layout = wibox.layout.flex.horizontal,
-        update = function(self, weather)
+        update = function(self, weather, astro)
             local day_night_extension = ""
             if not weather.is_day then
                 day_night_extension = "-night"
@@ -322,6 +338,25 @@ local function worker(user_args)
                 locale.wind .. '<b>' .. weather.wind_kph .. 'km/h (' .. weather.wind_dir .. ')</b>')
             self:get_children_by_id('humidity')[1]:set_markup(locale.humidity .. '<b>' .. weather.humidity .. '%</b>')
             self:get_children_by_id('uv')[1]:set_markup(locale.uv .. uvi_index_color(weather.uv))
+
+            local precip_val = tonumber(weather.precip_mm) or 0
+            self:get_children_by_id('precip')[1]:set_markup(
+                locale.precip .. '<b>' .. precip_val .. 'mm</b>')
+
+            local rain_chance = astro and tonumber(astro.daily_chance_of_rain) or 0
+            if rain_chance > 0 then
+                self:get_children_by_id('rain')[1]:set_markup(
+                    locale.rain .. '<b>' .. rain_chance .. '%</b>')
+            else
+                self:get_children_by_id('rain')[1]:set_text('')
+            end
+
+            if astro then
+                self:get_children_by_id('sunrise')[1]:set_markup(
+                    locale.sunrise .. '<b>' .. (astro.sunrise or '—') .. '</b>')
+                self:get_children_by_id('sunset')[1]:set_markup(
+                    locale.sunset .. '<b>' .. (astro.sunset or '—') .. '</b>')
+            end
         end
     }
 
@@ -377,6 +412,12 @@ local function worker(user_args)
                             text = gen_temperature_str(day.day.maxtemp_c, '%.0f', false, units),
                             align = 'center',
                             font = font_name .. ' 9',
+                            widget = wibox.widget.textbox
+                        },
+                        {
+                            markup = '<span foreground="#89b4fa">' .. (day.day.daily_chance_of_rain or 0) .. '%</span>',
+                            align = 'center',
+                            font = font_name .. ' 8',
                             widget = wibox.widget.textbox
                         },
                         layout = wibox.layout.fixed.vertical
@@ -598,6 +639,7 @@ local function worker(user_args)
         widget:is_ok(true)
 
         local result = json.decode(stdout)
+        local astro = result.forecast and result.forecast.forecastday and result.forecast.forecastday[1] and result.forecast.forecastday[1].astro or nil
 
         local day_night_extension = ""
         if not result.current.is_day then
@@ -608,7 +650,15 @@ local function worker(user_args)
         -- TODO: if units isn't "metric", read temp_f instead
         widget:set_text(gen_temperature_str(result.current.temp_c, '%.0f', both_units_widget, units))
 
-        current_weather_widget:update(result.current)
+        -- Tooltip with condition summary
+        tooltip:add_to_object(widget)
+        local tt_parts = {}
+        table.insert(tt_parts, result.current.condition.text)
+        table.insert(tt_parts, locale.wind .. result.current.wind_kph .. 'km/h')
+        table.insert(tt_parts, locale.humidity .. result.current.humidity .. '%')
+        tooltip.text = table.concat(tt_parts, ' | ')
+
+        current_weather_widget:update(result.current, astro)
 
         local final_widget = {
             layout = wibox.layout.fixed.vertical,
@@ -636,6 +686,13 @@ local function worker(user_args)
             daily_forecast_widget:update(result.forecast.forecastday)
             table.insert(final_widget, daily_forecast_widget)
         end
+
+        -- Last updated timestamp
+        table.insert(final_widget, wibox.widget {
+            markup = '<span foreground="#888888" font="' .. font_name .. ' 8">' .. locale.updated .. os.date('%H:%M') .. '</span>',
+            align = 'center',
+            widget = wibox.widget.textbox
+        })
 
         weather_popup:setup({
             {

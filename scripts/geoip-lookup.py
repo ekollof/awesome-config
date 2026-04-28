@@ -8,9 +8,11 @@ import json
 import os
 import subprocess
 import sys
+import urllib.request
 
 MMDB_PATH = os.path.join(
-    os.path.expanduser("~"), ".config", "awesome", "geoip", "GeoLite2-City.mmdb"
+    os.path.expanduser("~"),
+    ".config", "awesome", "geoip", "GeoLite2-City.mmdb"
 )
 
 
@@ -104,9 +106,16 @@ def lookup_ipapi():
         if result.returncode != 0:
             return None
         data = json.loads(result.stdout)
+        # ipapi.co returns {"error": true, "reason": "RateLimited"} when throttled
+        if data.get("error"):
+            return None
+        lat = data.get("latitude")
+        lon = data.get("longitude")
+        if lat is None or lon is None:
+            return None
         return {
-            "latitude": data.get("latitude"),
-            "longitude": data.get("longitude"),
+            "latitude": lat,
+            "longitude": lon,
             "city": data.get("city", ""),
             "region": data.get("region", ""),
             "country": data.get("country_name", ""),

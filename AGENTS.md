@@ -30,6 +30,7 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 | `scripts/lock.sh` | Screen locker — reads wallust wallpaper, runs i3lock-color |
 | `scripts/build-i3lock-color.sh` | Build i3lock-color from source (Debian/Ubuntu/Fedora) |
 | `scripts/picom-toggle.sh` | Toggle picom compositor (bound to Ctrl+Alt+O) |
+| `scripts/geoip-lookup.py` | Local MaxMind GeoLite2 lookup for weather coordinates |
 | `picom.conf` | Picom compositor config |
 | `install.sh` | Dependency installer — Arch, Debian/Ubuntu, Fedora, Alpine, FreeBSD, OpenBSD |
 
@@ -71,6 +72,21 @@ XF86AudioRaiseVolume / XF86AudioLowerVolume / XF86AudioMute.
 Music served from NAS at `/net/192.168.178.39/storage/Music/`.
 Cover art fetched via `mpc readpicture`. MPD widget shows artist/title,
 supports prev/toggle/next/stop clicks and scroll-to-change-volume.
+
+## Weather
+
+The weather widget (`widgets/weather.lua`) uses WeatherAPI. Coordinates are
+resolved via **local MaxMind GeoLite2 City** (`geoip/GeoLite2-City.mmdb`) using
+`scripts/geoip-lookup.py`. If the local DB is missing or `python3-maxminddb`
+is not installed, it falls back to `ipapi.co`.
+
+To set up the local GeoLite2 database:
+1. Download `GeoLite2-City` from [MaxMind](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data).
+2. Extract the `.mmdb` file to `geoip/` (e.g. `geoip/GeoLite2-City.mmdb`).
+3. `geoip/` is `.gitignore`d — it will not be committed.
+
+The popup shows: current conditions, precipitation, rain chance, wind,
+humidity, UV, sunrise/sunset, a 3-day forecast, and a "last updated" timestamp.
 
 ## Pacman hook
 

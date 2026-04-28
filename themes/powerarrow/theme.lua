@@ -278,8 +278,8 @@ local function make_weather_widget()
         lang                   = "en",
         font_name              = font_name,
         timeout                = 600,
-        show_forecast_on_hover = true,
-        show_daily_forecast    = true,
+        show_forecast_on_hover = weather_args.show_forecast_on_hover,
+        show_daily_forecast    = weather_args.show_daily_forecast,
         location               = weather_args.location,
     })
 end
@@ -295,35 +295,54 @@ local function populate_weather_containers()
     end
 end
 
+local function set_weather_args_from_geo(api_key, geo)
+    local lat = tonumber(geo.latitude)
+    local lon = tonumber(geo.longitude)
+    if not lat or not lon then return end
+    local loc_name = geo.city or ""
+    if geo.region and geo.region ~= "" then
+        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.region
+    end
+    if geo.country and geo.country ~= "" then
+        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.country
+    elseif geo.country_name and geo.country_name ~= "" then
+        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.country_name
+    end
+    weather_args = {
+        api_key = api_key,
+        coordinates = { lat, lon },
+        show_forecast_on_hover = true,
+        show_daily_forecast = true,
+        location = loc_name ~= "" and loc_name or nil,
+    }
+    populate_weather_containers()
+end
+
 awful.spawn.easy_async_with_shell(
     "pass api/weatherapi.com/key 2>/dev/null | tr -d '\\n'",
     function(api_key)
         api_key = api_key:gsub("%s+$", "")
         if not api_key or api_key == "" then return end
+        local geoip_script = os.getenv("HOME") .. "/.config/awesome/scripts/geoip-lookup.py"
         awful.spawn.easy_async_with_shell(
-            "curl -s 'https://ipapi.co/json/'",
+            "python3 " .. geoip_script .. " 2>/dev/null",
             function(stdout)
                 local json = require("json")
                 local ok, geo = pcall(json.decode, stdout)
-                if not ok or not geo then return end
-                local lat = tonumber(geo.latitude)
-                local lon = tonumber(geo.longitude)
-                if lat and lon then
-                    local loc_name = geo.city or ""
-                    if geo.region and geo.region ~= "" then
-                        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.region
-                    end
-                    if geo.country_name and geo.country_name ~= "" then
-                        loc_name = loc_name .. (loc_name ~= "" and ", " or "") .. geo.country_name
-                    end
-                    weather_args = {
-                        api_key = api_key,
-                        coordinates = { lat, lon },
-                        show_forecast_on_hover = true,
-                        location = loc_name ~= "" and loc_name or nil,
-                    }
-                    populate_weather_containers()
+                if ok and geo and geo.latitude then
+                    set_weather_args_from_geo(api_key, geo)
+                    return
                 end
+                -- Fallback to ipapi.co
+                awful.spawn.easy_async_with_shell(
+                    "curl -s 'https://ipapi.co/json/'",
+                    function(stdout2)
+                        local ok2, geo2 = pcall(json.decode, stdout2)
+                        if ok2 and geo2 and geo2.latitude then
+                            set_weather_args_from_geo(api_key, geo2)
+                        end
+                    end
+                )
             end
         )
     end

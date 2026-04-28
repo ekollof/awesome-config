@@ -1,0 +1,6 @@
+# GeoLite2 databases (copyright MaxMind, not for redistribution)
+/geoip/
+
+# Python cache
+__pycache__/
+*.pyc

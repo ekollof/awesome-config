@@ -312,6 +312,15 @@ install_pkgs \
     lua-lgi --- \
     lua-lgi
 
+# Python MaxMind DB reader (for local GeoLite2 location lookup)
+install_pkgs \
+    python-maxminddb python-geoip2 --- \
+    python3-maxminddb python3-geoip2 --- \
+    py38-maxminddb py38-geoip2 --- \
+    py3-maxminddb py3-geoip2 --- \
+    python3-maxminddb python3-geoip2 --- \
+    py3-maxminddb py3-geoip2
+
 # xss-lock — hooks xscreensaver idle timer to run the lock script
 install_pkgs \
     xss-lock --- \

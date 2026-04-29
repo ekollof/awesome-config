@@ -48,7 +48,6 @@ local DISTRO = detect_distro()
 local pacman = {
     repo_pkgs  = {},
     aur_pkgs   = {},
-    ---@type gears.timer|nil
     timer      = nil,
     _widget    = nil,  -- stored for hook refresh
     distro     = DISTRO,

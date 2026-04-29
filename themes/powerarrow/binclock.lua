@@ -1,3 +1,4 @@
+---@diagnostic disable: deprecated
 --[[
 
      Licensed under GNU General Public License v2

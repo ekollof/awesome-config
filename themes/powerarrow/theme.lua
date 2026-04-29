@@ -221,7 +221,7 @@ local bat        = bat_widget.widget
 bat_widget.attach(30)
 
 -- Check for battery presence for wibar layout visibility
-local has_battery = false
+local has_battery = nil
 local f = io.popen("uname")
 local _os = f:read("*all"):gsub("%s+", "")
 f:close()

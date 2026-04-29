@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.3",
+  "runtime.path": [
+    "?.lua",
+    "?/init.lua",
+    "/usr/share/lua/5.3/?.lua",
+    "/usr/share/lua/5.3/?/init.lua"
+  ],
+  "diagnostics.globals": [
+    "awesome",
+    "client",
+    "screen",
+    "mouse",
+    "tag",
+    "root",
+    "mpd_now",
+    "volume_now",
+    "widget"
+  ],
+  "diagnostics.disable": [
+    "need-check-nil",
+    "inject-field",
+    "undefined-field",
+    "redundant-parameter"
+  ],
+  "workspace.library": [
+    "${3rd}/luassert/library"
+  ],
+  "workspace.checkThirdParty": false,
+  "workspace.ignoreDir": [
+    "lain",
+    "freedesktop",
+    "awesome-wm-widgets",
+    "contrib",
+    "geoip",
+    "themes/*/icons",
+    "widgets/weather-icons"
+  ]
+}

@@ -22,7 +22,9 @@
     "need-check-nil",
     "inject-field",
     "undefined-field",
-    "redundant-parameter"
+    "redundant-parameter",
+    "lowercase-global",
+    "unused-local"
   ],
   "workspace.library": [
     "${3rd}/luassert/library"

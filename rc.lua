@@ -12,16 +12,15 @@
 --]]
 
 -- {{{ Required libraries
-local awesome, client, mouse, screen, tag = awesome, client, mouse, screen, tag
-local ipairs, string, os, table, tostring, tonumber, type = ipairs, string, os, table, tostring, tonumber, type
+local awesome, client = awesome, client
+local string, os, tostring = string, os, tostring
 
 --https://awesomewm.org/doc/api/documentation/05-awesomerc.md.html
 -- Standard awesome library
 local gears = require("gears") --Utilities such as color parsing and objects
 local awful = require("awful") --Everything related to window managment
 require("awful.autofocus")
--- Widget and layout library
-local wibox = require("wibox")
+-- Widget and layout library loaded in theme/screens modules
 
 -- OS detection (used for portable power commands etc.)
 _G._is_linux = io.open("/proc/version", "r") ~= nil
@@ -59,7 +58,6 @@ naughty.config.presets.critical.border_color = "#ff0000"
 
 --local menubar       = require("menubar")
 
-local lain = require("lain")
 local freedesktop = require("freedesktop")
 
 -- Enable hotkeys help widget for VIM and other apps
@@ -220,7 +218,7 @@ awful.util.tasklist_buttons = my_table.join(
 			c:raise()
 		end
 	end),
-	awful.button({}, 3, function(c)
+	awful.button({}, 3, function()
 		if tasklist_menu_instance and tasklist_menu_instance.wibox.visible then
 			tasklist_menu_instance:hide()
 			tasklist_menu_instance = nil
@@ -248,7 +246,7 @@ local function set_systray_colors()
     local color_str = string.format("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
         r16, g16, b16, r16, g16, b16, r16, g16, b16, r16, g16, b16
     )
-    
+
     -- Find all tray manager windows and set the property there (where apps actually look)
     local cmd = "xwininfo -root -tree | grep 'Awesome systray window' | sed 's/^[[:space:]]*//' | cut -d' ' -f1"
     awful.spawn.easy_async_with_shell(cmd, function(stdout)

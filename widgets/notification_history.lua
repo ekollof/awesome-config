@@ -81,11 +81,10 @@ local function format_time(ts)
     return os.date("%H:%M", ts)
 end
 
-local function escape_markup(s)
+local function strip_markup(s)
     if not s then return "" end
-    return s:gsub("&", "&amp;")
-             :gsub("<", "&lt;")
-             :gsub(">", "&gt;")
+    -- Remove HTML-like / Pango markup tags: <b>, </b>, <span ...>, etc.
+    return s:gsub("<[^>]*>", "")
 end
 
 local function truncate(s, len)
@@ -134,7 +133,7 @@ local function build_rows()
                         "<span foreground='%s' font='%s'>Filter: %s</span>",
                         beautiful.fg_urgent or "#aaaaaa",
                         beautiful.font or "sans 9",
-                        escape_markup(filter_text)
+                        strip_markup(filter_text)
                     ),
                     widget = wibox.widget.textbox,
                 },
@@ -168,8 +167,8 @@ local function build_rows()
     for i = filtered_start, math.min(filtered_start + VISIBLE_ROWS - 1, total) do
         local entry = filtered[i]
         local time_str = format_time(entry.timestamp)
-        local title_str = escape_markup(truncate(entry.title, 40))
-        local text_str  = escape_markup(truncate(entry.text, 60))
+        local title_str = strip_markup(truncate(entry.title, 40))
+        local text_str  = strip_markup(truncate(entry.text, 60))
 
         local row = wibox.widget {
             {

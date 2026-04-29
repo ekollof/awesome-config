@@ -34,18 +34,20 @@ local indicator_widget = nil
 local keygrabber      = nil
 
 -- ---------------------------------------------------------------------------
--- Capture notifications
+-- Capture notifications (monkey-patch naughty.notify)
 -- ---------------------------------------------------------------------------
-naughty.connect_signal("added", function(n)
+local _naughty_notify = naughty.notify
+naughty.notify = function(args)
     table.insert(history, 1, {
-        title     = n.title or "Notification",
-        text      = n.text or "",
+        title     = args.title or "Notification",
+        text      = args.text or "",
         timestamp = os.time(),
     })
     if #history > MAX_HISTORY then table.remove(history) end
     unread_count = unread_count + 1
     update_indicator()
-end)
+    return _naughty_notify(args)
+end
 
 -- ---------------------------------------------------------------------------
 -- Helper: update wibar indicator

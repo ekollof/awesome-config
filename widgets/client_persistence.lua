@@ -207,4 +207,19 @@ function persistence.save_all()
     persistence.save_now()
 end
 
+-- ---------------------------------------------------------------------------
+-- Periodic background save (covers crashes where exit signal never fires)
+-- ---------------------------------------------------------------------------
+
+gears.timer {
+    timeout   = 30,
+    autostart = true,
+    callback  = function()
+        for _, c in ipairs(client.get()) do
+            persistence.record(c)
+        end
+        persistence.save_now()
+    end
+}
+
 return persistence

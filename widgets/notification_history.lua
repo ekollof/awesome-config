@@ -34,9 +34,37 @@ local keygrabber      = nil
 
 -- ---------------------------------------------------------------------------
 -- Capture notifications (monkey-patch naughty.notify)
+-- Only record notifications that came from D-Bus (apps, system daemons, etc.)
+-- D-Bus notifications carry freedesktop_hints / freedesktop_client_name;
+-- internal Lua popups (calendar, volume, etc.) do not.
 -- ---------------------------------------------------------------------------
 local _naughty_notify = naughty.notify
+
+local MONTH_NAMES = { "January", "February", "March", "April", "May", "June",
+                      "July", "August", "September", "October", "November", "December" }
+
+local function is_calendar_popup(text)
+    if not text then return false end
+    text = text:lower()
+    -- Calendar popups contain a month name + day headers like "Sun Mon Tue"
+    for _, m in ipairs(MONTH_NAMES) do
+        if text:find(m:lower(), 1, true) and text:find("sun", 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 naughty.notify = function(args)
+    -- D-Bus notifications carry freedesktop metadata
+    local from_dbus = (args.freedesktop_hints ~= nil)
+                   or (args.freedesktop_client_name ~= nil)
+
+    -- Skip internal widget popups (calendar, volume bars, etc.)
+    if not from_dbus or is_calendar_popup(args.text) then
+        return _naughty_notify(args)
+    end
+
     table.insert(history, 1, {
         title     = args.title or "Notification",
         text      = args.text or "",

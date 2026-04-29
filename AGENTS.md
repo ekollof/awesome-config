@@ -38,9 +38,17 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 
 | Directory | Upstream | Purpose |
 |---|---|---|
-| `lain/` | https://github.com/lcpz/lain | Widget library (MPD, mem, cpu, net, cal, separators) |
 | `freedesktop/` | https://github.com/lcpz/awesome-freedesktop | Right-click app menu from .desktop files |
-| `updatewidget/` | vendored (based on raksooo/pacmanwidget, heavily modified) | Multi-distro update count — not a submodule |
+
+## Vendored libraries
+
+| Directory | Origin | Purpose |
+|---|---|---|
+| `lain/` | https://github.com/lcpz/lain | Widget library (MPD, alsabar, calendar, markup, separators, quake, helpers) |
+| `widgets/weather.lua` | https://github.com/streetturtle/awesome-wm-widgets | Weather widget with GeoIP location header |
+| `widgets/weather-locale/` | vendored | Weather widget i18n strings |
+| `widgets/weather-icons/` | vendored | Weather condition icons (PNG/SVG) |
+| `updatewidget/` | vendored (based on raksooo/pacmanwidget, heavily modified) | Multi-distro update count |
 
 ## Wallust integration
 

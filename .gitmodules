@@ -2,7 +2,3 @@
 	path = freedesktop
 	url = https://github.com/lcpz/awesome-freedesktop.git
 	branch = master
-[submodule "lain"]
-	path = lain
-	url = https://github.com/lcpz/lain.git
-	branch = master

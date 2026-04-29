@@ -270,17 +270,25 @@ local function ensure_popup()
 end
 
 -- ---------------------------------------------------------------------------
--- Position popup near mouse / screen center
+-- Position popup near mouse, clamped to screen edges
+-- Uses known widget dimensions (forced_width / forced_height) since
+-- popup_obj.width/height may be nil before first show.
 -- ---------------------------------------------------------------------------
+local POPUP_W = dpi(600)
+local POPUP_H = dpi(400)
+
 local function position_popup()
     if not popup_obj then return end
     local s = awful.screen.focused()
     local geo = s.geometry
-    local pw, ph = popup_obj.width, popup_obj.height
     local mx, my = mouse.coords().x, mouse.coords().y
 
-    local x = math.max(geo.x + dpi(10), math.min(mx - pw // 2, geo.x + geo.width - pw - dpi(10)))
-    local y = math.max(geo.y + dpi(10), math.min(my - ph // 2, geo.y + geo.height - ph - dpi(10)))
+    local x = math.max(geo.x + dpi(10),
+                        math.min(mx - POPUP_W // 2,
+                                 geo.x + geo.width - POPUP_W - dpi(10)))
+    local y = math.max(geo.y + dpi(10),
+                        math.min(my - POPUP_H // 2,
+                                 geo.y + geo.height - POPUP_H - dpi(10)))
 
     popup_obj.x = x
     popup_obj.y = y

@@ -462,6 +462,11 @@ globalkeys = my_table.join(
 		theme_menu:show()
 	end, { description = "pick theme", group = "awesome" }),
 
+	-- Notification history
+	awful.key({ modkey, "Shift" }, "i", function()
+		require("widgets.notification_history").toggle()
+	end, { description = "notification history", group = "awesome" }),
+
 	awful.key({ altkey, "Shift" }, "l", function()
 		awful.tag.incmwfact(0.05)
 	end, { description = "increase master width factor", group = "layout" }),

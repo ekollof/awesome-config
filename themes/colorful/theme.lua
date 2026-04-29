@@ -433,6 +433,7 @@ function theme.at_screen_connect(s)
             wibox.container.background(wibox.container.margin(uptime_widget.widget, dpi(4), dpi(4)), seg1),
             wibox.container.background(wibox.container.margin(clock, dpi(4), dpi(8)), seg2),
             s.mylayoutbox,
+            wibox.container.background(wibox.container.margin(require("widgets.notification_history").create(), dpi(4), dpi(4), dpi(4), dpi(4)), theme.bg_systray),
             wibox.container.background(wibox.container.margin(s.systray, dpi(6), dpi(6), dpi(4), dpi(4)), theme.bg_systray),
         },
     }

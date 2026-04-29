@@ -338,9 +338,13 @@ function theme.at_screen_connect(s)
     s.mywibox = awful.wibar({ position = "top", screen = s, height = dpi(22), bg = theme.bg_normal, fg = theme.fg_normal })
 
     -- Assemble wibar
+    local notif_hist = require("widgets.notification_history")
+
     local right_widgets = {
         layout = wibox.layout.fixed.horizontal,
         wibox.widget.systray(),
+        small_spr,
+        notif_hist.create(),
         small_spr,
         mpdicon,
         theme.mpd.widget,

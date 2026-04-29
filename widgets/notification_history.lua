@@ -259,58 +259,49 @@ local function start_search()
 end
 
 -- ---------------------------------------------------------------------------
--- Key handling
+-- Key handling (old-style awful.keygrabber.run callback)
 -- ---------------------------------------------------------------------------
 local function start_keygrabber()
     if keygrabber then return end
-    keygrabber = awful.keygrabber {
-        stop_key            = gears.table.join({"Escape", "q"}),
-        stop_event          = "press",
-        start_callback      = function() end,
-        stop_callback       = function()
-            keygrabber = nil
+    keygrabber = awful.keygrabber.run(function(mod, key, event)
+        if event == "release" then return true end
+        if key == "Escape" or key == "q" then
             hide_popup()
-        end,
-        keybindings = {
-            awful.key({}, "Up", function()
-                if filtered_start > 1 then
-                    filtered_start = filtered_start - 1
-                    build_rows()
-                end
-            end),
-            awful.key({}, "Down", function()
-                local filtered = get_filtered_history()
-                if filtered_start + VISIBLE_ROWS - 1 < #filtered then
-                    filtered_start = filtered_start + 1
-                    build_rows()
-                end
-            end),
-            awful.key({}, "Page_Up", function()
-                filtered_start = math.max(1, filtered_start - VISIBLE_ROWS)
+            return false -- stop grabbing
+        elseif key == "Up" then
+            if filtered_start > 1 then
+                filtered_start = filtered_start - 1
                 build_rows()
-            end),
-            awful.key({}, "Page_Down", function()
-                local filtered = get_filtered_history()
-                filtered_start = math.min(math.max(1, #filtered - VISIBLE_ROWS + 1), filtered_start + VISIBLE_ROWS)
+            end
+        elseif key == "Down" then
+            local filtered = get_filtered_history()
+            if filtered_start + VISIBLE_ROWS - 1 < #filtered then
+                filtered_start = filtered_start + 1
                 build_rows()
-            end),
-            awful.key({"Control"}, "k", function()
-                history = {}
-                filter_text = ""
-                filtered_start = 1
-                unread_count = 0
-                update_indicator()
-                build_rows()
-                naughty.notify({ title = "History", text = "Notification history cleared." })
-            end),
-        },
-    }
-    keygrabber:start()
+            end
+        elseif key == "Page_Up" then
+            filtered_start = math.max(1, filtered_start - VISIBLE_ROWS)
+            build_rows()
+        elseif key == "Page_Down" then
+            local filtered = get_filtered_history()
+            filtered_start = math.min(math.max(1, #filtered - VISIBLE_ROWS + 1), filtered_start + VISIBLE_ROWS)
+            build_rows()
+        elseif key == "k" and (mod:find("Control") or mod:find("Mod4")) then
+            history = {}
+            filter_text = ""
+            filtered_start = 1
+            unread_count = 0
+            update_indicator()
+            build_rows()
+            naughty.notify({ title = "History", text = "Notification history cleared." })
+        end
+        return true -- continue grabbing
+    end)
 end
 
 local function stop_keygrabber()
     if keygrabber then
-        keygrabber:stop()
+        awful.keygrabber.stop(keygrabber)
         keygrabber = nil
     end
 end

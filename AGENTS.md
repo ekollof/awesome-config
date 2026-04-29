@@ -34,16 +34,11 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 | `picom.conf` | Picom compositor config |
 | `install.sh` | Dependency installer — Arch, Debian/Ubuntu, Fedora, Alpine, FreeBSD, OpenBSD |
 
-## Submodules
-
-| Directory | Upstream | Purpose |
-|---|---|---|
-| `freedesktop/` | https://github.com/lcpz/awesome-freedesktop | Right-click app menu from .desktop files |
-
 ## Vendored libraries
 
 | Directory | Origin | Purpose |
 |---|---|---|
+| `freedesktop/` | https://github.com/lcpz/awesome-freedesktop | Right-click app menu from .desktop files |
 | `lain/` | https://github.com/lcpz/lain | Widget library (MPD, alsabar, calendar, markup, separators, quake, helpers) |
 | `widgets/weather.lua` | https://github.com/streetturtle/awesome-wm-widgets | Weather widget with GeoIP location header |
 | `widgets/weather-locale/` | vendored | Weather widget i18n strings |

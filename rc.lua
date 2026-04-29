@@ -1,13 +1,13 @@
 --[[
 
-     Awesome WM configuration template
+     Awesome WM configuration
      https://github.com/awesomeWM
 
-     Freedesktop : https://github.com/lcpz/awesome-freedesktop
+     Vendored libraries:
+       freedesktop : https://github.com/lcpz/awesome-freedesktop
+       lain        : https://github.com/lcpz/lain
 
      Copycats themes : https://github.com/lcpz/awesome-copycats
-
-     lain : https://github.com/lcpz/lain
 
 --]]
 

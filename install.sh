@@ -175,16 +175,6 @@ install_pkgs() {
     esac
 }
 
-# ── submodules ─────────────────────────────────────────────────────────────────
-
-info "Initialising git submodules (freedesktop)..."
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$REPO_DIR/.gitmodules" ]]; then
-    run git -C "$REPO_DIR" submodule update --init --recursive
-else
-    warn "Not a git repo or no .gitmodules — skipping submodule init"
-fi
-
 # ── packages ───────────────────────────────────────────────────────────────────
 
 info "Installing core packages..."

@@ -33,8 +33,9 @@ local beautiful = require("beautiful")
 
 -- keep themes in alphabetical order for ATT
 _G.themes = {
-	"copland", -- 1
-	"powerarrow", -- 2
+	"colorful", -- 1
+	"copland", -- 2
+	"powerarrow", -- 3
 }
 
 -- load persisted theme choice, fall back to default

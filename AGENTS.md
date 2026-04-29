@@ -6,7 +6,7 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 ## System
 
 - **WM:** AwesomeWM 4.x
-- **Theme:** powerarrow (default), copland — both in `themes/<name>/`
+- **Theme:** powerarrow (default), colorful, copland — all in `themes/<name>/`
 - **Terminal:** kitty
 - **Compositor:** picom (`picom.conf`)
 - **Font:** BerkeleyMono Nerd Font

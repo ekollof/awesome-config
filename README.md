@@ -13,7 +13,7 @@ heavily extended with custom widgets, multi-distro support, and quality-of-life 
 | | |
 |---|---|
 | **WM** | AwesomeWM 4.x |
-| **Theme** | powerarrow (default), copland |
+| **Theme** | powerarrow (default), colorful, copland |
 | **Terminal** | kitty |
 | **Compositor** | picom |
 | **Font** | BerkeleyMono Nerd Font |

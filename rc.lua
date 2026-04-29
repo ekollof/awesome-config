@@ -36,6 +36,10 @@ local beautiful = require("beautiful")
 local naughty = require("naughty")
 naughty.config.defaults["icon_size"] = 100
 
+-- Client persistence (restores windows across restarts)
+local persistence = require("widgets.client_persistence")
+persistence.load()
+
 -- Notification behaviour
 naughty.config.defaults.timeout      = 5
 naughty.config.defaults.position     = "top_right"
@@ -1288,6 +1292,9 @@ client.connect_signal("manage", function(c)
 		-- Prevent clients from being unreachable after screen count changes.
 		awful.placement.no_offscreen(c)
 	end
+
+	-- Restore screen, tags, and geometry from the previous session.
+	persistence.restore(c)
 end)
 
 -- Add a titlebar if titlebars_enabled is set to true in the rules.
@@ -1365,6 +1372,22 @@ client.connect_signal("property::urgent", function(c)
 			icon    = c.icon,
 		})
 	end
+end)
+
+-- Persist window placement when moved between screens or tags.
+client.connect_signal("property::screen", function(c)
+    persistence.record(c)
+end)
+client.connect_signal("property::tags", function(c)
+    persistence.record(c)
+end)
+client.connect_signal("unmanage", function(c)
+    persistence.forget(c)
+end)
+
+-- Flush state before restart or quit.
+awesome.connect_signal("exit", function()
+    persistence.save_all()
 end)
 
 -- }}}

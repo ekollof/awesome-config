@@ -72,7 +72,7 @@ Uncomment the ones you need.
 
 The Lua palette template. Wallust fills in `{{color0}}`–`{{color15}}`, `{{background}}`,
 `{{foreground}}`, `{{cursor}}`, and `{{wallpaper}}`. The output is read by
-`themes/powerarrow/theme.lua` to color the wibar segments, borders, and notifications.
+`themes/<name>/theme.lua` (e.g. `powerarrow`) to color the wibar segments, borders, and notifications.
 
 ### wallust/templates/colors-rofi.rasi
 

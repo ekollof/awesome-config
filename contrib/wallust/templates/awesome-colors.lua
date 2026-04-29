@@ -4,7 +4,7 @@
 -- Output location:   ~/.cache/wal/awesome-colors.lua   (set in wallust.toml)
 --
 -- This file uses wallust's "new engine" ({{variable}} syntax).
--- Read by themes/powerarrow/theme.lua at AwesomeWM startup.
+-- Read by themes/<name>/theme.lua at AwesomeWM startup.
 --
 -- Do not edit the generated output at ~/.cache/wal/awesome-colors.lua —
 -- edit this template instead and re-run: wallust run <wallpaper>

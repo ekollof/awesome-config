@@ -31,6 +31,27 @@ local _poweroff_cmd = _is_linux and "systemctl poweroff" or "shutdown -p now"
 -- Theme handling library
 local beautiful = require("beautiful")
 
+-- keep themes in alphabetical order for ATT
+_G.themes = {
+	"copland", -- 1
+	"powerarrow", -- 2
+}
+
+-- load persisted theme choice, fall back to default
+local chosen_theme = _G.themes[2]
+local theme_state_file = os.getenv("HOME") .. "/.cache/awesome/current_theme"
+local fh = io.open(theme_state_file, "r")
+if fh then
+	local saved = fh:read("*line")
+	fh:close()
+	for _, t in ipairs(_G.themes) do
+		if t == saved then
+			chosen_theme = t
+			break
+		end
+	end
+end
+
 -- Notification library
 local naughty = require("naughty")
 naughty.config.defaults["icon_size"] = 100
@@ -42,7 +63,7 @@ naughty.config.defaults.position     = "top_right"
 -- Fill in default icon and title if the sender didn't provide them
 naughty.config.notify_callback = function(args)
     if not args.icon then
-        args.icon = os.getenv("HOME") .. "/.config/awesome/themes/powerarrow/icons/note.png"
+        args.icon = os.getenv("HOME") .. "/.config/awesome/themes/" .. chosen_theme .. "/icons/note.png"
     end
     if not args.title or args.title == "" then
         args.title = "Notification"
@@ -109,21 +130,6 @@ awful.spawn.with_shell(
 --]]
 
 -- }}}
-
--- {{{ Variable definitions
-
--- keep themes in alfabetical order for ATT
-local themes = {
-	"blackburn", -- 1
-	"copland", -- 2
-	"multicolor", -- 3
-	"powerarrow", -- 4
-	"powerarrow-blue", -- 5
-	"powerarrow-dark", -- 6
-}
-
--- choose your theme here
-local chosen_theme = themes[4]
 
 -- modkey or mod4 = super key
 modkey = "Mod4"
@@ -236,6 +242,13 @@ awful.util.tasklist_buttons = my_table.join(
 
 
 beautiful.init(string.format("%s/.config/awesome/themes/%s/theme.lua", os.getenv("HOME"), chosen_theme))
+
+-- Show which theme was loaded (helpful when multiple theme files look identical with wallust)
+naughty.notify({
+	title = "AwesomeWM",
+	text = "Loaded theme: " .. chosen_theme,
+	timeout = 3,
+})
 
 -- {{{ Systray Color Fix
 -- Communicates theme colors to symbolic icons via X11 specification

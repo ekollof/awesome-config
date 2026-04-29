@@ -419,6 +419,49 @@ globalkeys = my_table.join(
 	awful.key({ modkey, "Shift" }, "r", awesome.restart, { description = "reload awesome", group = "awesome" }),
 	awful.key({ modkey, modkey1 }, "q", awesome.quit, { description = "quit awesome", group = "awesome" }),
 
+	-- Theme picker
+	awful.key({ modkey, "Shift" }, "t", function()
+		local theme_menu_items = {}
+		-- read current theme so we can mark it with a check
+		local current_theme = nil
+		local fh = io.open(os.getenv("HOME") .. "/.cache/awesome/current_theme", "r")
+		if fh then
+			current_theme = fh:read("*line")
+			fh:close()
+		end
+		for _, t in ipairs(_G.themes) do
+			local label = (t == current_theme) and ("✓ " .. t) or t
+			table.insert(theme_menu_items, {
+				label,
+				function()
+					local state_dir = os.getenv("HOME") .. "/.cache/awesome"
+					local state_file = state_dir .. "/current_theme"
+					awful.spawn.easy_async_with_shell(
+						string.format("mkdir -p %q && printf %q > %q && sync", state_dir, t, state_file),
+						function(stdout, stderr, reason, exit_code)
+							if exit_code == 0 then
+								naughty.notify({
+									title = "Theme changed",
+									text = "Restarting AwesomeWM with theme: " .. t,
+									timeout = 2,
+								})
+								awesome.restart()
+							else
+								naughty.notify({
+									title = "Theme save failed",
+									text = stderr or "unknown error",
+									preset = naughty.config.presets.critical,
+								})
+							end
+						end
+					)
+				end,
+			})
+		end
+		local theme_menu = awful.menu({ items = theme_menu_items, theme = { width = 220 } })
+		theme_menu:show()
+	end, { description = "pick theme", group = "awesome" }),
+
 	awful.key({ altkey, "Shift" }, "l", function()
 		awful.tag.incmwfact(0.05)
 	end, { description = "increase master width factor", group = "layout" }),

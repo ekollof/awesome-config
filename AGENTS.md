@@ -6,11 +6,12 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 ## System
 
 - **WM:** AwesomeWM 4.x
-- **Theme:** powerarrow (modified) — `themes/powerarrow/`
+- **Theme:** powerarrow (default), copland — both in `themes/<name>/`
 - **Terminal:** kitty
 - **Compositor:** picom (`picom.conf`)
 - **Font:** BerkeleyMono Nerd Font
 - **Color scheme:** [wallust](https://codeberg.org/explosion-mental/wallust) (pywal-compatible), colors loaded from `~/.cache/wal/awesome-colors.lua`
+- **Theme picker:** `Super+Shift+T` — shows a menu to switch theme and restart AwesomeWM. Choice is persisted to `~/.cache/awesome/current_theme`.
 
 ## Monitors
 
@@ -25,7 +26,7 @@ Based on the [awesome-copycats](https://github.com/lcpz/awesome-copycats) powera
 | File/Dir | Purpose |
 |---|---|
 | `rc.lua` | Main config — keybindings, rules, autostart, tags |
-| `themes/powerarrow/theme.lua` | Wibar layout, all widgets, wallust colors, fonts |
+| `themes/<name>/theme.lua` | Wibar layout, all widgets, wallust colors, fonts (see `themes/` for variants) |
 | `updatewidget/` | Multi-distro update count widget (apt/pacman/yay) |
 | `scripts/lock.sh` | Screen locker — reads wallust wallpaper, runs i3lock-color |
 | `scripts/build-i3lock-color.sh` | Build i3lock-color from source (Debian/Ubuntu/Fedora) |

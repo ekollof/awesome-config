@@ -429,7 +429,7 @@ fi
 # ── wallust colour template ────────────────────────────────────────────────────
 
 WALLUST_TEMPLATE_DIR="$HOME/.config/wallust/templates"
-WALLUST_COLORS_SRC="$REPO_DIR/themes/powerarrow/awesome-colors.lua.template"
+WALLUST_COLORS_SRC="$REPO_DIR/contrib/wallust/templates/awesome-colors.lua"
 WALLUST_COLORS_DST="$HOME/.cache/wal/awesome-colors.lua"
 
 if [[ -f "$WALLUST_COLORS_SRC" ]]; then
@@ -510,7 +510,7 @@ echo ""
 ok "Installation complete."
 echo ""
 echo "Next steps:"
-echo "  1. Install BerkeleyMono Nerd Font (or set a different font in themes/powerarrow/theme.lua)"
+echo "  1. Install BerkeleyMono Nerd Font (or set a different font in themes/<name>/theme.lua)"
 echo "  2. Set up MPD: edit ~/.config/mpd/mpd.conf with your music directory"
 echo "  3. Set up weather: store your weatherapi.com key with:"
 echo "       pass insert api/weatherapi.com/key"

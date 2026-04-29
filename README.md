@@ -13,11 +13,12 @@ heavily extended with custom widgets, multi-distro support, and quality-of-life 
 | | |
 |---|---|
 | **WM** | AwesomeWM 4.x |
-| **Theme** | powerarrow (modified) |
+| **Theme** | powerarrow (default), copland |
 | **Terminal** | kitty |
 | **Compositor** | picom |
 | **Font** | BerkeleyMono Nerd Font |
 | **Colors** | wallust (pywal-compatible, auto-generated from wallpaper) |
+| **Theme picker** | `Super+Shift+T` — switch theme and restart AwesomeWM (choice persisted) |
 | **Monitors** | DisplayPort-0 2560×1080 (primary), DisplayPort-1 1920×1080, HDMI-A-0 1920×1080 |
 
 ## Installation
@@ -262,7 +263,7 @@ Core runtime dependencies installed by `install.sh`:
 ```
 ~/.config/awesome/
 ├── rc.lua                        # Main config
-├── themes/powerarrow/theme.lua   # Wibar, widgets, colors
+├── themes/<name>/theme.lua       # Wibar, widgets, colors (powerarrow, copland)
 ├── updatewidget/                 # Multi-distro update counter
 ├── widgets/
 │   ├── sysmon.lua                # Consolidated CPU/Mem/Temp/Disk dashboard

@@ -229,7 +229,7 @@ local function position_popup()
     local s = awful.screen.focused()
     local geo = s.geometry
     local pw, ph = popup_obj.width, popup_obj.height
-    local mx, my = awful.mouse.coords().x, awful.mouse.coords().y
+    local mx, my = mouse.coords().x, mouse.coords().y
 
     local x = math.max(geo.x + dpi(10), math.min(mx - pw // 2, geo.x + geo.width - pw - dpi(10)))
     local y = math.max(geo.y + dpi(10), math.min(my - ph // 2, geo.y + geo.height - ph - dpi(10)))

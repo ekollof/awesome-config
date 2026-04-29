@@ -28,7 +28,6 @@ local popup_visible   = false
 local filtered_start  = 1
 local filter_text     = ""
 local popup_obj       = nil
-local prompt_widget   = nil
 local rows_container  = nil
 local indicator_widget = nil
 local keygrabber      = nil
@@ -126,6 +125,30 @@ local function build_rows()
     if not rows_container then return end
     rows_container:reset()
 
+    -- Filter header
+    if filter_text and filter_text ~= "" then
+        rows_container:add(wibox.widget {
+            {
+                {
+                    markup = string.format(
+                        "<span foreground='%s' font='%s'>Filter: %s</span>",
+                        beautiful.fg_urgent or "#aaaaaa",
+                        beautiful.font or "sans 9",
+                        escape_markup(filter_text)
+                    ),
+                    widget = wibox.widget.textbox,
+                },
+                left   = dpi(8),
+                right  = dpi(8),
+                top    = dpi(4),
+                bottom = dpi(2),
+                widget = wibox.container.margin,
+            },
+            bg     = beautiful.bg_focus or "#222222",
+            widget = wibox.container.background,
+        })
+    end
+
     local filtered = get_filtered_history()
     local total = #filtered
     if total == 0 then
@@ -182,35 +205,18 @@ end
 local function ensure_popup()
     if popup_obj and popup_obj.valid then return end
 
-    prompt_widget = wibox.widget.textbox()
-    prompt_widget.font = beautiful.font or "sans 11"
-
     rows_container = wibox.layout.fixed.vertical()
 
-    local popup_widget = wibox.widget {
-        {
-            {
-                prompt_widget,
-                left   = dpi(8),
-                right  = dpi(8),
-                top    = dpi(6),
-                bottom = dpi(6),
-                widget = wibox.container.margin,
-            },
-            bg     = beautiful.bg_focus or "#222222",
-            widget = wibox.container.background,
-        },
-        {
-            rows_container,
-            forced_width  = dpi(600),
-            forced_height = dpi(400),
-            widget = wibox.container.constraint,
-        },
-        layout = wibox.layout.fixed.vertical,
-    }
-
     popup_obj = awful.popup {
-        widget       = popup_widget,
+        widget = wibox.widget {
+            {
+                rows_container,
+                forced_width  = dpi(600),
+                forced_height = dpi(400),
+                widget = wibox.container.constraint,
+            },
+            layout = wibox.layout.fixed.vertical,
+        },
         bg           = beautiful.bg_normal or "#000000",
         border_width = dpi(1),
         border_color = beautiful.border_focus or "#333333",
@@ -219,6 +225,21 @@ local function ensure_popup()
         visible      = false,
         screen       = awful.screen.focused(),
     }
+
+    -- Close on mouse leave (with grace period)
+    local leave_timer
+    popup_obj:connect_signal("mouse::leave", function()
+        leave_timer = gears.timer.start_new(0.3, function()
+            hide_popup()
+            return false
+        end)
+    end)
+    popup_obj:connect_signal("mouse::enter", function()
+        if leave_timer then
+            leave_timer:stop()
+            leave_timer = nil
+        end
+    end)
 end
 
 -- ---------------------------------------------------------------------------
@@ -239,35 +260,27 @@ local function position_popup()
 end
 
 -- ---------------------------------------------------------------------------
--- Search prompt
--- ---------------------------------------------------------------------------
-local function start_search()
-    if not prompt_widget then return end
-    awful.prompt.run {
-        prompt       = "Filter: ",
-        textbox      = prompt_widget,
-        exe_callback = function() end,
-        changed_callback = function(text)
-            filter_text = text
-            filtered_start = 1
-            build_rows()
-        end,
-        done_callback = function()
-            -- Prompt finished (e.g. Enter pressed) — keep focus on popup
-        end,
-    }
-end
-
--- ---------------------------------------------------------------------------
 -- Key handling (old-style awful.keygrabber.run callback)
 -- ---------------------------------------------------------------------------
+local function has_mod(mod_table, name)
+    for _, m in ipairs(mod_table) do
+        if m == name then return true end
+    end
+    return false
+end
+
+local function is_printable(key)
+    return #key == 1 and key:match("[%w%p%s]")
+end
+
 local function start_keygrabber()
     if keygrabber then return end
     keygrabber = awful.keygrabber.run(function(mod, key, event)
         if event == "release" then return true end
+
         if key == "Escape" or key == "q" then
             hide_popup()
-            return false -- stop grabbing
+            return false
         elseif key == "Up" then
             if filtered_start > 1 then
                 filtered_start = filtered_start - 1
@@ -286,7 +299,13 @@ local function start_keygrabber()
             local filtered = get_filtered_history()
             filtered_start = math.min(math.max(1, #filtered - VISIBLE_ROWS + 1), filtered_start + VISIBLE_ROWS)
             build_rows()
-        elseif key == "k" and (mod:find("Control") or mod:find("Mod4")) then
+        elseif key == "BackSpace" then
+            if #filter_text > 0 then
+                filter_text = filter_text:sub(1, -2)
+                filtered_start = 1
+                build_rows()
+            end
+        elseif key == "k" and has_mod(mod, "Control") then
             history = {}
             filter_text = ""
             filtered_start = 1
@@ -294,8 +313,12 @@ local function start_keygrabber()
             update_indicator()
             build_rows()
             naughty.notify({ title = "History", text = "Notification history cleared." })
+        elseif is_printable(key) and not has_mod(mod, "Control") then
+            filter_text = filter_text .. key
+            filtered_start = 1
+            build_rows()
         end
-        return true -- continue grabbing
+        return true
     end)
 end
 
@@ -320,7 +343,6 @@ function show_popup()
     filtered_start = 1
     filter_text = ""
     build_rows()
-    start_search()
     start_keygrabber()
 end
 

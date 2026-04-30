@@ -66,7 +66,7 @@ elseif DISTRO == "freebsd" then
     CMD_REPO = "pkg version -l '<' 2>/dev/null"
     CMD_AUR  = ""
 elseif DISTRO == "openbsd" then
-    CMD_REPO = "pkg_add -u -n 2>/dev/null | grep ' -> '"
+    CMD_REPO = "pkg_add -I -u -n 2>/dev/null | grep ' -> '"
     CMD_AUR  = ""
 else
     CMD_REPO = ""

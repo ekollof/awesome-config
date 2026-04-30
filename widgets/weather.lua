@@ -18,7 +18,8 @@ local HOME_DIR = os.getenv("HOME")
 local WIDGET_DIR = HOME_DIR .. '/.config/awesome/widgets'
 local GET_FORECAST_CMD = [[bash -c "curl -s --show-error -X GET '%s'"]]
 
-local SYS_LANG = os.getenv("LANG"):sub(1, 2)
+local raw_lang = os.getenv("LANG") or "en_US.UTF-8"
+local SYS_LANG = raw_lang:sub(1, 2)
 if SYS_LANG == "C" or SYS_LANG == "C." then
     SYS_LANG = "en"
 end

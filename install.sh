@@ -5,6 +5,7 @@
 
 set -euo pipefail
 
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
@@ -306,7 +307,7 @@ install_pkgs \
 install_pkgs \
     python-maxminddb python-geoip2 --- \
     python3-maxminddb python3-geoip2 --- \
-    py38-maxminddb py38-geoip2 --- \
+    py3-maxminddb py3-geoip2 --- \
     py3-maxminddb py3-geoip2 --- \
     python3-maxminddb python3-geoip2 --- \
     py3-maxminddb py3-geoip2

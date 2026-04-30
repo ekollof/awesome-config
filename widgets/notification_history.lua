@@ -345,7 +345,7 @@ local function start_keygrabber()
             filter_text = ""
             filtered_start = 1
             unread_count = 0
-            update_indicator()
+            update_indicators()
             build_rows()
             naughty.notify({ title = "History", text = "Notification history cleared." })
         elseif is_printable(key) and not has_mod(mod, "Control") then

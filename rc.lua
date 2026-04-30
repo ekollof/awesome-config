@@ -61,16 +61,6 @@ end
 _G._persistence_enabled = true
 _G._persistence_tags_enabled = true
 
--- Check for bypass file
-if gears.filesystem.file_readable(os.getenv("HOME") .. "/.cache/awesome/no_persistence") then
-    _G._persistence_enabled = false
-    naughty.notify({
-        preset = naughty.config.presets.critical,
-        title = "Persistence Disabled",
-        text = "Bypass file ~/.cache/awesome/no_persistence detected."
-    })
-end
-
 -- Notification library
 local naughty = require("naughty")
 naughty.config.defaults["icon_size"] = 100
@@ -95,6 +85,16 @@ naughty.config.presets.critical.timeout  = 0  -- stay until dismissed
 naughty.config.presets.critical.bg       = "#900000"
 naughty.config.presets.critical.fg       = "#ffffff"
 naughty.config.presets.critical.border_color = "#ff0000"
+
+-- Check for bypass file (must happen after naughty is loaded)
+if gears.filesystem.file_readable(os.getenv("HOME") .. "/.cache/awesome/no_persistence") then
+    _G._persistence_enabled = false
+    naughty.notify({
+        preset = naughty.config.presets.critical,
+        title = "Persistence Disabled",
+        text = "Bypass file ~/.cache/awesome/no_persistence detected."
+    })
+end
 
 --local menubar       = require("menubar")
 
@@ -229,7 +229,7 @@ awful.util.tasklist_buttons = my_table.join(
 		if c == client.focus then
 			c.minimized = true
 		else
-			--c:emit_signal("request::activate", "tasklist", {raise = true})<Paste>
+			--c:emit_signal("request::activate", "tasklist", {raise = true})
 
 			-- Without this, the following
 			-- :isvisible() makes no sense

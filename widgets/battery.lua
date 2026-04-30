@@ -104,8 +104,6 @@ function battery.create()
     local i = wibox.widget.imagebox()
     table.insert(_widgets, w)
     table.insert(_icons, i)
-    -- Initial update
-    gears.timer.delayed_call(update_widget)
     return w, i
 end
 
@@ -115,9 +113,11 @@ function battery.attach(timeout)
             gears.timer {
                 timeout   = timeout or 30,
                 autostart = true,
-                call_now  = true,
+                call_now  = false,
                 callback  = update_widget
             }
+            -- Defer first update until after startup completes
+            gears.timer.delayed_call(update_widget)
         end
     end)
 end

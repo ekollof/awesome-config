@@ -47,19 +47,16 @@ end
 local function get_ifaces(cb)
     if _ifaces then cb(_ifaces); return end
     if _G._os == "Linux" then
-        -- Read interface names directly from sysfs
-        local ifaces = {}
-        local f = io.popen("ls /sys/class/net/ 2>/dev/null")
-        if f then
-            for name in f:read("*a"):gmatch("[^\n]+") do
-                if name ~= "lo" then
-                    table.insert(ifaces, name)
+        awful.spawn.easy_async_with_shell(
+            "ls /sys/class/net/ 2>/dev/null",
+            function(out)
+                local ifaces = {}
+                for name in out:gmatch("[^\n]+") do
+                    if name ~= "lo" then table.insert(ifaces, name) end
                 end
-            end
-            f:close()
-        end
-        _ifaces = ifaces
-        cb(ifaces)
+                _ifaces = ifaces
+                cb(ifaces)
+            end)
     else
         awful.spawn.easy_async_with_shell(
             "netstat -ibn 2>/dev/null | awk 'NR>1 && $1 !~ /^lo/ && $1 !~ /Name/ {print $1}' | sort -u",
@@ -245,8 +242,6 @@ end
 function net.create()
     local w = wibox.widget.textbox()
     table.insert(_widgets, w)
-    -- Initial update
-    gears.timer.delayed_call(update)
     return w
 end
 

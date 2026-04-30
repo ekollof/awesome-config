@@ -68,8 +68,6 @@ end
 function uptime.create()
     local w = wibox.widget.textbox()
     table.insert(_widgets, w)
-    -- Initial update
-    gears.timer.delayed_call(update_widget)
     return w
 end
 
@@ -77,9 +75,11 @@ function uptime.attach(timeout)
     gears.timer {
         timeout   = timeout or 60,
         autostart = true,
-        call_now  = true,
+        call_now  = false,
         callback  = update_widget
     }
+    -- Defer first update until after startup completes
+    gears.timer.delayed_call(update_widget)
 end
 
 return uptime

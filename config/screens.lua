@@ -35,10 +35,17 @@ end)
 screen.connect_signal("arrange", function(s)
 	local only_one = #s.tiled_clients == 1
 	for _, c in pairs(s.clients) do
+		local target_width = beautiful.border_width
 		if (only_one and not c.floating) or c.maximized then
-			c.border_width = 2
-		else
-			c.border_width = beautiful.border_width
+			target_width = 2
+		end
+
+		if c.fullscreen then
+			target_width = 0
+		end
+
+		if c.border_width ~= target_width then
+			c.border_width = target_width
 		end
 	end
 end)
@@ -87,8 +94,12 @@ local function max_layout_minimize(s)
 
 			-- Force focus if we are switching to this tag
 			if target_visible and target_visible ~= focused then
-				client.focus = target_visible
-				target_visible:raise()
+				gears.timer.delayed_call(function()
+					if target_visible.valid then
+						client.focus = target_visible
+						target_visible:raise()
+					end
+				end)
 			end
 		end
 	end
@@ -97,12 +108,20 @@ local function max_layout_minimize(s)
 		if not c.floating then
 			if is_max and c ~= target_visible then
 				if not c.minimized then
-					c.minimized = true
-					c._max_auto_minimized = true
+					gears.timer.delayed_call(function()
+						if c.valid then
+							c.minimized = true
+							c._max_auto_minimized = true
+						end
+					end)
 				end
 			elseif c._max_auto_minimized then
-				c.minimized = false
-				c._max_auto_minimized = false
+				gears.timer.delayed_call(function()
+					if c.valid then
+						c.minimized = false
+						c._max_auto_minimized = false
+					end
+				end)
 			end
 		end
 	end

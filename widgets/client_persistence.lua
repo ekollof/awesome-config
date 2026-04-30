@@ -78,7 +78,11 @@ function persistence.save_now()
 end
 
 function persistence.record(c)
-    if not c.valid then return end
+    if not c.valid or not _G._persistence_enabled then return end
+
+    -- Don't record fullscreen or maximized windows, as restoring them
+    -- can cause race conditions with focus/grabbing.
+    if c.fullscreen or c.maximized then return end
 
     local tags = {}
     for _, t in ipairs(c:tags()) do
@@ -115,6 +119,7 @@ end
 -- ---------------------------------------------------------------------------
 
 function persistence.restore(c)
+    if not _G._persistence_enabled then return end
     local saved = persistence.state[tostring(c.window)]
     if not saved then return end
 
@@ -141,7 +146,7 @@ function persistence.restore(c)
     end
 
     -- Restore tags by name (tag indices may shift across restarts).
-    if saved.tags and #saved.tags > 0 then
+    if _G._persistence_tags_enabled and saved.tags and #saved.tags > 0 then
         local s = c.screen
         if s then
             local target_tags = {}
@@ -162,18 +167,6 @@ function persistence.restore(c)
     -- Restore layout state.
     if saved.floating ~= nil then
         c.floating = saved.floating
-    end
-    if saved.maximized then
-        c.maximized = true
-    end
-    if saved.maximized_horizontal then
-        c.maximized_horizontal = true
-    end
-    if saved.maximized_vertical then
-        c.maximized_vertical = true
-    end
-    if saved.fullscreen then
-        c.fullscreen = true
     end
 
     -- Restore geometry for floating windows (delay so tiling settles first).
@@ -201,6 +194,7 @@ end
 -- ---------------------------------------------------------------------------
 
 function persistence.save_all()
+    if not _G._persistence_enabled then return end
     for _, c in ipairs(client.get()) do
         persistence.record(c)
     end
@@ -215,6 +209,7 @@ gears.timer {
     timeout   = 30,
     autostart = true,
     callback  = function()
+        if not _G._persistence_enabled then return end
         for _, c in ipairs(client.get()) do
             persistence.record(c)
         end

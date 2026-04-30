@@ -39,7 +39,7 @@ _G.themes = {
 }
 
 -- load persisted theme choice, fall back to default
-local chosen_theme = _G.themes[2]
+local chosen_theme = _G.themes[3]
 local theme_state_file = os.getenv("HOME") .. "/.cache/awesome/current_theme"
 local fh = io.open(theme_state_file, "r")
 if fh then
@@ -51,6 +51,20 @@ if fh then
 			break
 		end
 	end
+end
+
+-- Client persistence toggle
+_G._persistence_enabled = true
+_G._persistence_tags_enabled = true
+
+-- Check for bypass file
+if gears.filesystem.file_readable(os.getenv("HOME") .. "/.cache/awesome/no_persistence") then
+    _G._persistence_enabled = false
+    naughty.notify({
+        preset = naughty.config.presets.critical,
+        title = "Persistence Disabled",
+        text = "Bypass file ~/.cache/awesome/no_persistence detected."
+    })
 end
 
 -- Notification library

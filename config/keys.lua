@@ -467,6 +467,26 @@ globalkeys = my_table.join(
 		require("widgets.notification_history").toggle()
 	end, { description = "notification history", group = "awesome" }),
 
+	-- Persistence toggle
+	awful.key({ modkey, "Control" }, "p", function()
+		_G._persistence_enabled = not _G._persistence_enabled
+		naughty.notify({
+			title = "Persistence",
+			text  = "Client persistence is now " .. (_G._persistence_enabled and "ENABLED" or "DISABLED"),
+			timeout = 2,
+		})
+	end, { description = "toggle client persistence", group = "awesome" }),
+
+	-- Tag persistence toggle
+	awful.key({ modkey, "Control", "Shift" }, "p", function()
+		_G._persistence_tags_enabled = not _G._persistence_tags_enabled
+		naughty.notify({
+			title = "Persistence",
+			text  = "Tag persistence is now " .. (_G._persistence_tags_enabled and "ENABLED" or "DISABLED"),
+			timeout = 2,
+		})
+	end, { description = "toggle tag persistence", group = "awesome" }),
+
 	awful.key({ altkey, "Shift" }, "l", function()
 		awful.tag.incmwfact(0.05)
 	end, { description = "increase master width factor", group = "layout" }),

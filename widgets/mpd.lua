@@ -154,7 +154,7 @@ local function factory(args)
         end
     end
 
-    local musicplr = awful.util.terminal .. " -title Music -g 130x34-320+16 -e ncmpcpp"
+    local musicplr = awful.util.terminal .. " --title Music ncmpcpp"
     local buttons  = awful.util.table.join(
         awful.button({ modkey }, 1, nil,               function() awful.spawn.with_shell(musicplr) end),
         awful.button({ "Shift" },          1, make_guard_button("mpc stop"),  nil),

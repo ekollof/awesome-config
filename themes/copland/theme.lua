@@ -296,7 +296,20 @@ end
 -- Per-screen setup
 -- ---------------------------------------------------------------------------
 function theme.at_screen_connect(s)
-    -- ...
+    -- Quake application
+    s.quake = lain.util.quake({ app = awful.util.terminal })
+
+    -- Wallpaper
+    local wallpaper = theme.wallpaper
+    if type(wallpaper) == "function" then wallpaper = wallpaper(s) end
+    gears.wallpaper.fit(wallpaper, s)
+
+    -- Tags
+    awful.tag(awful.util.tagnames, s, awful.layout.layouts[1])
+
+    -- Promptbox
+    s.mypromptbox = awful.widget.prompt()
+
     local spr = wibox.widget.textbox(" ")
     local bar_spr = wibox.widget.textbox()
     bar_spr:set_markup(markup.fontfg(theme.font, gray, " | "))

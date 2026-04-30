@@ -4,9 +4,7 @@
 
     Usage:
         local net = require("widgets.net")
-        -- net.widget  : textbox showing total rx/tx rates
-        -- net.devices : table of { [devname] = { carrier, received, sent } }
-                         updated every poll interval
+        -- net.create() : returns a textbox widget for the wibar
 --]]
 
 local wibox   = require("wibox")
@@ -15,13 +13,11 @@ local gears   = require("gears")
 local markup  = require("lain.util").markup
 local dpi     = require("beautiful.xresources").apply_dpi
 
-local _is_linux = io.open("/proc/version", "r") ~= nil
-
 local net = {
-    widget  = wibox.widget.textbox(),
     devices = {},  -- [devname] = { carrier, received, sent }
 }
 
+local _widgets   = {}   -- List of per-screen textboxes
 local _prev      = {}   -- [dev] = { rx=n, tx=n }
 local _graphs    = {}   -- [dev] = { rx=graph, tx=graph }
 local _ifaces    = nil  -- cached list, populated on first poll
@@ -50,7 +46,7 @@ end
 
 local function get_ifaces(cb)
     if _ifaces then cb(_ifaces); return end
-    if _is_linux then
+    if _G._os == "Linux" then
         -- Read interface names directly from sysfs
         local ifaces = {}
         local f = io.popen("ls /sys/class/net/ 2>/dev/null")
@@ -80,67 +76,7 @@ end
 
 local function update()
     get_ifaces(function(ifaces)
-        local function process(out)
-            local raw = {}
-
-            if _is_linux then
-                for _, dev in ipairs(ifaces) do
-                    local rx_f      = io.open("/sys/class/net/" .. dev .. "/statistics/rx_bytes", "r")
-                    local tx_f      = io.open("/sys/class/net/" .. dev .. "/statistics/tx_bytes", "r")
-                    local carrier_f = io.open("/sys/class/net/" .. dev .. "/carrier", "r")
-                    local rx      = rx_f      and tonumber(rx_f:read("*l"))      or 0
-                    local tx      = tx_f      and tonumber(tx_f:read("*l"))      or 0
-                    local carrier = carrier_f and carrier_f:read("*l")           or "0"
-                    if rx_f      then rx_f:close()      end
-                    if tx_f      then tx_f:close()      end
-                    if carrier_f then carrier_f:close() end
-
-                    -- Fetch extra info (Linux)
-                    local extra = ""
-                    if dev:match("^wl") then
-                        local f = io.popen("iwgetid " .. dev .. " -r 2>/dev/null")
-                        if f then
-                            local ssid = f:read("*l")
-                            f:close()
-                            if ssid then extra = "SSID: " .. ssid end
-                        end
-                    else
-                        local f = io.open("/sys/class/net/" .. dev .. "/speed", "r")
-                        if f then
-                            local speed = f:read("*l")
-                            f:close()
-                            if speed and speed ~= "-1" then extra = speed .. " Mb/s" end
-                        end
-                    end
-
-                    raw[dev] = { rx = rx, tx = tx, carrier = carrier, extra = extra }
-                end
-            else
-                -- BSD: parse netstat -ibn
-                for line in out:gmatch("[^\n]+") do
-                    -- Split by whitespace
-                    local fields = {}
-                    for f in line:gmatch("%S+") do table.insert(fields, f) end
-
-                    -- We want the <Link> row (Address usually starts with a MAC or <Link)
-                    -- FreeBSD: Name(1) Mtu(2) Network(3) Address(4) Ipkts(5) Ierrs(6) Idrop(7) Ibytes(8) ... Obytes(11)
-                    -- OpenBSD: Name(1) Mtu(2) Network(3) Address(4) Ipkts(5) Ierrs(6) Ibytes(7) ... Obytes(10)
-                    local name = fields[1]
-                    if name and not name:match("^lo") and fields[3] and fields[3]:match("Link") then
-                        local ibytes, obytes
-                        if #fields >= 11 then -- FreeBSD style with Idrop
-                            ibytes, obytes = fields[8], fields[11]
-                        elseif #fields >= 10 then -- OpenBSD style
-                            ibytes, obytes = fields[7], fields[10]
-                        end
-
-                        if ibytes and obytes then
-                            raw[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1", extra = "" }
-                        end
-                    end
-                end
-            end
-
+        local function process(raw)
             local total_rx, total_tx = 0, 0
             local devices = {}
 
@@ -174,54 +110,70 @@ local function update()
             net.devices = devices
 
             local beautiful = require("beautiful")
-            net.widget:set_markup(markup.fontfg(
+            local m = markup.fontfg(
                 beautiful.font, beautiful.fg_normal,
-                " " .. fmt(total_rx) .. "↓ " .. fmt(total_tx) .. "↑ "))
+                " " .. fmt(total_rx) .. "↓ " .. fmt(total_tx) .. "↑ ")
+
+            for _, w in ipairs(_widgets) do
+                if w.valid then w:set_markup(m) end
+            end
         end
 
-        if _is_linux then
-            -- sysfs reads are synchronous; no subprocess needed
-            process(nil)
+        if _G._os == "Linux" then
+            -- Linux sysfs can be slow, but we can do it in shell to avoid blocking
+            local cmd = "for dev in /sys/class/net/*; do [ \"$dev\" = \"/sys/class/net/lo\" ] && continue; " ..
+                        "name=$(basename $dev); rx=$(cat $dev/statistics/rx_bytes); tx=$(cat $dev/statistics/tx_bytes); " ..
+                        "carrier=$(cat $dev/carrier 2>/dev/null || echo 0); " ..
+                        "if [ -d $dev/wireless ] || [ -f $dev/phy80211 ]; then extra=\"SSID: $(iwgetid $name -r 2>/dev/null)\"; " ..
+                        "else extra=\"$(cat $dev/speed 2>/dev/null) Mb/s\"; fi; " ..
+                        "echo \"$name|$rx|$tx|$carrier|$extra\"; done"
+            awful.spawn.easy_async_with_shell(cmd, function(stdout)
+                local raw = {}
+                for line in stdout:gmatch("[^\n]+") do
+                    local name, rx, tx, carrier, extra = line:match("([^|]+)|([^|]+)|([^|]+)|([^|]+)|(.*)")
+                    if name then
+                        raw[name] = { rx = tonumber(rx), tx = tonumber(tx), carrier = carrier, extra = extra }
+                    end
+                end
+                process(raw)
+            end)
         else
-            -- BSD: Optimized single-pass data collection
-            -- We get bytes from netstat and media/SSID from ifconfig in one shell execution
+            -- BSD
             local cmd = "netstat -ibn; ifconfig -a"
             awful.spawn.easy_async_with_shell(cmd, function(out)
-                -- 1. Split the output into netstat and ifconfig sections
                 local netstat_out, ifconfig_out = out:match("(Name.-)\n(.*)")
-                if not netstat_out then netstat_out = out end -- Fallback
+                if not netstat_out then netstat_out = out end
+                
+                local raw = {}
+                for line in netstat_out:gmatch("[^\n]+") do
+                    local fields = {}
+                    for f in line:gmatch("%S+") do table.insert(fields, f) end
+                    local name = fields[1]
+                    if name and not name:match("^lo") and fields[3] and fields[3]:match("Link") then
+                        local ibytes, obytes
+                        if #fields >= 11 then ibytes, obytes = fields[8], fields[11]
+                        elseif #fields >= 10 then ibytes, obytes = fields[7], fields[10] end
+                        if ibytes and obytes then
+                            raw[name] = { rx = tonumber(ibytes), tx = tonumber(obytes), carrier = "1", extra = "" }
+                        end
+                    end
+                end
 
-                -- 2. Process byte counts
-                process(netstat_out)
-
-                -- 3. Parse ifconfig -a for all interfaces at once
                 if ifconfig_out then
                     local current_dev = nil
                     for line in ifconfig_out:gmatch("[^\n]+") do
                         local dev = line:match("^(%S+):")
-                        if dev then
-                            current_dev = dev
-                        elseif current_dev and net.devices[current_dev] then
-                            local extra = ""
-                            -- Speed
+                        if dev then current_dev = dev
+                        elseif current_dev and raw[current_dev] then
                             local speed = line:match("media: Ethernet autoselect %((%d+baseT)")
                                        or line:match("media: Ethernet (%d+baseT)")
-                            if speed then 
-                                extra = speed:gsub("baseT", "") .. " Mb/s"
-                            end
-                            
-                            -- Wireless
+                            if speed then raw[current_dev].extra = speed:gsub("baseT", "") .. " Mb/s" end
                             local ssid = line:match("ssid (%S+)") or line:match("nwid (%S+)")
-                            if ssid then
-                                extra = (extra ~= "" and (extra .. " ") or "") .. "SSID: " .. ssid
-                            end
-
-                            if extra ~= "" then
-                                net.devices[current_dev].extra = extra
-                            end
+                            if ssid then raw[current_dev].extra = (raw[current_dev].extra ~= "" and (raw[current_dev].extra .. " ") or "") .. "SSID: " .. ssid end
                         end
                     end
                 end
+                process(raw)
             end)
         end
     end)
@@ -283,10 +235,15 @@ local function build_popup_widget()
             layout = wibox.layout.fixed.vertical,
             spacing = dpi(5)
         })
-        -- Add a separator margin between interfaces
         rows:add(wibox.container.margin(wibox.widget.base.make_widget(), 0, 0, 0, dpi(5)))
     end
     return wibox.container.margin(rows, dpi(10), dpi(10), dpi(8), dpi(8))
+end
+
+function net.create()
+    local w = wibox.widget.textbox()
+    table.insert(_widgets, w)
+    return w
 end
 
 function net.popup_show()

@@ -197,21 +197,22 @@ local bat        = bat_widget.widget
 bat_widget.attach(30)
 
 -- Check for battery presence for wibar layout visibility
-local has_battery = nil
-local f = io.popen("uname")
-local _os = f:read("*all"):gsub("%s+", "")
-f:close()
+-- Battery (portable version)
+local bat_widget = require("widgets.battery")
+bat_widget.attach(30)
 
-if _os == "Linux" then
+-- Check for battery presence for wibar layout visibility
+local has_battery = false
+if _G._os == "Linux" then
     has_battery = gears.filesystem.dir_readable("/sys/class/power_supply/BAT0")
-elseif _os == "FreeBSD" then
+elseif _G._os == "FreeBSD" then
     local s = io.popen("sysctl -n hw.acpi.battery.units 2>/dev/null")
     if s then
         local out = s:read("*all")
         has_battery = tonumber(out) and tonumber(out) > 0
         s:close()
     end
-elseif _os == "OpenBSD" then
+elseif _G._os == "OpenBSD" then
     local s = io.popen("apm -l 2>/dev/null")
     if s then
         local out = s:read("*all")
@@ -223,10 +224,6 @@ end
 -- Net
 local net_widget = require("widgets.net")
 local neticon    = wibox.widget.textbox(" 󰲝 ")
-neticon:connect_signal("mouse::enter", net_widget.popup_show)
-net_widget.widget:connect_signal("mouse::enter", net_widget.popup_show)
-neticon:connect_signal("mouse::leave", net_widget.popup_hide)
-net_widget.widget:connect_signal("mouse::leave", net_widget.popup_hide)
 
 -- System Monitor
 local sysmon
@@ -236,6 +233,7 @@ if sysmon_ok then
 else
     sysmon = { create = function() return wibox.widget.textbox("sysmon error") end }
 end
+
 
 -- ALSA volume bar
 local volicon = wibox.widget.imagebox(theme.vol)
@@ -306,7 +304,7 @@ function theme.at_screen_connect(s)
     -- Quake application
     s.quake = lain.util.quake({ app = awful.util.terminal })
 
-    -- Wallpaper (fit preserves aspect ratio on ultrawide)
+    -- If wallpaper is a function, call it with the screen
     local wallpaper = theme.wallpaper
     if type(wallpaper) == "function" then
         wallpaper = wallpaper(s)
@@ -316,8 +314,17 @@ function theme.at_screen_connect(s)
     -- Tags
     awful.tag(awful.util.tagnames, s, awful.layout.layouts[1])
 
-    -- Promptbox
+    -- Create a promptbox for each screen
     s.mypromptbox = awful.widget.prompt()
+
+    -- Per-screen widgets
+    local net_text = net_widget.create()
+    local bat_text, bat_icon = bat_widget.create()
+
+    neticon:connect_signal("mouse::enter", net_widget.popup_show)
+    net_text:connect_signal("mouse::enter", net_widget.popup_show)
+    neticon:connect_signal("mouse::leave", net_widget.popup_hide)
+    net_text:connect_signal("mouse::leave", net_widget.popup_hide)
 
     -- Layoutbox
     s.mylayoutbox = awful.widget.layoutbox(s)
@@ -354,8 +361,8 @@ function theme.at_screen_connect(s)
     }
 
     if has_battery then
-        table.insert(right_widgets, baticon)
-        table.insert(right_widgets, bat)
+        table.insert(right_widgets, bat_icon)
+        table.insert(right_widgets, bat_text)
         table.insert(right_widgets, bar_spr)
     end
 
@@ -363,7 +370,7 @@ function theme.at_screen_connect(s)
     table.insert(right_widgets, volumewidget)
     table.insert(right_widgets, bar_spr)
     table.insert(right_widgets, neticon)
-    table.insert(right_widgets, net_widget.widget)
+    table.insert(right_widgets, net_text)
     table.insert(right_widgets, bar_spr)
     table.insert(right_widgets, mytextclock)
 

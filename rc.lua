@@ -24,6 +24,10 @@ require("awful.autofocus")
 
 -- OS detection (used for portable power commands etc.)
 _G._is_linux = io.open("/proc/version", "r") ~= nil
+local f = io.popen("uname")
+_G._os = f:read("*all"):gsub("%s+", "")
+f:close()
+
 local _suspend_cmd  = _is_linux and "systemctl suspend"  or "acpiconf -s 3"
 local _reboot_cmd   = _is_linux and "systemctl reboot"   or "shutdown -r now"
 local _poweroff_cmd = _is_linux and "systemctl poweroff" or "shutdown -p now"

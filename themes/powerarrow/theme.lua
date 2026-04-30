@@ -216,27 +216,20 @@ local mpdicon   = mpd_widget.icon
 mpd_widget.attach()
 -- Battery (portable version)
 local bat_widget = require("widgets.battery")
-local baticon    = bat_widget.icon
-local bat        = bat_widget.widget
 bat_widget.attach(30)
 
 -- Check for battery presence for wibar layout visibility
-local has_battery = nil
-local f = io.popen("uname")
-local _os = f:read("*all"):gsub("%s+", "")
-f:close()
-
-if _os == "Linux" then
+local has_battery = false
+if _G._os == "Linux" then
     has_battery = gears.filesystem.dir_readable("/sys/class/power_supply/BAT0")
-elseif _os == "FreeBSD" then
-    -- synchronous check for wibar layout stability
+elseif _G._os == "FreeBSD" then
     local s = io.popen("sysctl -n hw.acpi.battery.units 2>/dev/null")
     if s then
         local out = s:read("*all")
         has_battery = tonumber(out) and tonumber(out) > 0
         s:close()
     end
-elseif _os == "OpenBSD" then
+elseif _G._os == "OpenBSD" then
     local s = io.popen("apm -l 2>/dev/null")
     if s then
         local out = s:read("*all")
@@ -244,13 +237,12 @@ elseif _os == "OpenBSD" then
         s:close()
     end
 end
+
+
 -- Net
 local net_widget = require("widgets.net")
 local neticon    = wibox.widget.textbox(" 󰲝 ")
-neticon:connect_signal("mouse::enter", net_widget.popup_show)
-net_widget.widget:connect_signal("mouse::enter", net_widget.popup_show)
-neticon:connect_signal("mouse::leave", net_widget.popup_hide)
-net_widget.widget:connect_signal("mouse::leave", net_widget.popup_hide)
+
 -- System Monitor
 local sysmon
 local sysmon_ok, sysmon_mod = pcall(require, "widgets.sysmon")
@@ -259,9 +251,11 @@ if sysmon_ok then
 else
     sysmon = { create = function() return wibox.widget.textbox("sysmon error") end }
 end
+
 -- Uptime
 local uptime_widget = require("widgets.uptime")
 uptime_widget.attach(60)
+
 -- Weather widget (API key from pass, coordinates resolved via GeoIP)
 -- Callbacks stored so each screen can spawn its own widget instance
 local weather_args = nil          -- set once async chain completes
@@ -396,6 +390,17 @@ function theme.at_screen_connect(s)
 
     -- Create a promptbox for each screen
     s.mypromptbox = awful.widget.prompt()
+
+    -- Per-screen widgets
+    local net_text = net_widget.create()
+    local uptime_text = uptime_widget.create()
+    local bat_text, bat_icon = bat_widget.create()
+
+    neticon:connect_signal("mouse::enter", net_widget.popup_show)
+    net_text:connect_signal("mouse::enter", net_widget.popup_show)
+    neticon:connect_signal("mouse::leave", net_widget.popup_hide)
+    net_text:connect_signal("mouse::leave", net_widget.popup_hide)
+
     -- Create systray
     s.systray = wibox.widget.systray()
     s.systray:set_base_size(dpi(24))
@@ -450,7 +455,7 @@ function theme.at_screen_connect(s)
                  return wibox.container.background(wibox.container.margin(c, dpi(2), dpi(2)), seg5)
              end)(),
              has_battery and arrow(seg5, seg6) or arrow(seg5, seg_vol),
-             has_battery and wibox.container.background(wibox.container.margin(wibox.widget { baticon, bat, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg6) or nil,
+             has_battery and wibox.container.background(wibox.container.margin(wibox.widget { bat_icon, bat_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg6) or nil,
              has_battery and arrow(seg6, seg_vol) or nil,
              wibox.container.background(wibox.container.margin(wibox.widget {
                  volicon,
@@ -458,9 +463,9 @@ function theme.at_screen_connect(s)
                  layout = wibox.layout.fixed.horizontal,
              }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
              arrow(seg_vol, seg7),
-            wibox.container.background(wibox.container.margin(wibox.widget { neticon, net_widget.widget, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
+            wibox.container.background(wibox.container.margin(wibox.widget { neticon, net_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
             arrow(seg7, seg1),
-            wibox.container.background(wibox.container.margin(uptime_widget.widget, dpi(4), dpi(4)), seg1),
+            wibox.container.background(wibox.container.margin(uptime_text, dpi(4), dpi(4)), seg1),
             arrow(seg1, seg2),
             wibox.container.background(wibox.container.margin(clock, dpi(4), dpi(8)), seg2),
             arrow(seg2, theme.bg_normal),

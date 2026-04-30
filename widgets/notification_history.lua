@@ -29,7 +29,7 @@ local filtered_start  = 1
 local filter_text     = ""
 local popup_obj       = nil
 local rows_container  = nil
-local indicator_widget = nil
+local indicator_widgets = {} -- List of per-screen indicators
 local keygrabber      = nil
 
 -- ---------------------------------------------------------------------------
@@ -72,33 +72,35 @@ naughty.notify = function(args)
     })
     if #history > MAX_HISTORY then table.remove(history) end
     unread_count = unread_count + 1
-    update_indicator()
+    update_indicators()
     return _naughty_notify(args)
 end
 
 -- ---------------------------------------------------------------------------
 -- Helper: update wibar indicator
 -- ---------------------------------------------------------------------------
-function update_indicator()
-    if not indicator_widget then return end
+function update_indicators()
     local icon = "󰂚"
+    local markup
     if unread_count > 0 then
-        indicator_widget:set_markup(
-            string.format("<span foreground='%s'>%s</span> <span foreground='%s' font='%s'>%d</span>",
-                beautiful.fg_normal or "#ffffff",
-                icon,
-                beautiful.bg_urgent or "#ff0000",
-                beautiful.font or "sans 8",
-                unread_count
-            )
+        markup = string.format("<span foreground='%s'>%s</span> <span foreground='%s' font='%s'>%d</span>",
+            beautiful.fg_normal or "#ffffff",
+            icon,
+            beautiful.bg_urgent or "#ff0000",
+            beautiful.font or "sans 8",
+            unread_count
         )
     else
-        indicator_widget:set_markup(
-            string.format("<span foreground='%s'>%s</span>",
-                beautiful.fg_normal or "#ffffff",
-                icon
-            )
+        markup = string.format("<span foreground='%s'>%s</span>",
+            beautiful.fg_normal or "#ffffff",
+            icon
         )
+    end
+
+    for _, w in ipairs(indicator_widgets) do
+        if w.valid then
+            w:set_markup(markup)
+        end
     end
 end
 
@@ -374,7 +376,7 @@ function show_popup()
     popup_obj.visible = true
     popup_visible = true
     unread_count = 0
-    update_indicator()
+    update_indicators()
     filtered_start = 1
     filter_text = ""
     build_rows()
@@ -399,17 +401,19 @@ end
 -- Wibar indicator factory
 -- ---------------------------------------------------------------------------
 local function create_indicator()
-    indicator_widget = wibox.widget.textbox()
-    indicator_widget.font = beautiful.font or "sans 11"
-    update_indicator()
+    local w = wibox.widget.textbox()
+    w.font = beautiful.font or "sans 11"
+    
+    table.insert(indicator_widgets, w)
+    update_indicators()
 
-    indicator_widget:connect_signal("button::press", function(_, _, _, button)
+    w:connect_signal("button::press", function(_, _, _, button)
         if button == 1 then -- left click
             toggle_popup()
         end
     end)
 
-    return indicator_widget
+    return w
 end
 
 -- ---------------------------------------------------------------------------

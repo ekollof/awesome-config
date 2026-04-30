@@ -9,15 +9,11 @@ local gears   = require("gears")
 local markup  = require("lain.util").markup
 local beautiful = require("beautiful")
 
--- OS detection
-local f = io.popen("uname")
-local _os = f:read("*all"):gsub("%s+", "")
-f:close()
-
 local uptime = {
-    widget = wibox.widget.textbox(),
     now    = ""
 }
+
+local _widgets = {}
 
 local function update_widget()
     local function finish(seconds)
@@ -38,17 +34,23 @@ local function update_widget()
         end
         
         uptime.now = text
-        uptime.widget:set_markup(markup.font(beautiful.font, " " .. text .. " "))
+        local m = markup.font(beautiful.font, " " .. text .. " ")
+
+        for _, w in ipairs(_widgets) do
+            if w.valid then
+                w:set_markup(m)
+            end
+        end
     end
 
-    if _os == "Linux" then
-        local uf = io.open("/proc/uptime", "r")
-        if uf then
-            local line = uf:read("*l")
-            uf:close()
-            local secs = line:match("^(%d+%.?%d*)")
-            finish(secs)
-        end
+    if _G._os == "Linux" then
+        awful.spawn.easy_async_with_shell(
+            "cat /proc/uptime",
+            function(stdout)
+                local secs = stdout:match("^(%d+%.?%d*)")
+                finish(secs)
+            end
+        )
     else
         -- BSDs
         awful.spawn.easy_async_with_shell(
@@ -62,6 +64,12 @@ local function update_widget()
             end
         )
     end
+end
+
+function uptime.create()
+    local w = wibox.widget.textbox()
+    table.insert(_widgets, w)
+    return w
 end
 
 function uptime.attach(timeout)

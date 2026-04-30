@@ -9,19 +9,15 @@ local gears   = require("gears")
 local markup  = require("lain.util").markup
 local beautiful = require("beautiful")
 
--- OS detection
-local f = io.popen("uname")
-local _os = f:read("*all"):gsub("%s+", "")
-f:close()
-
 local battery = {
-    widget = wibox.widget.textbox(),
-    icon   = wibox.widget.imagebox(),
     now    = {
         perc      = 0,
         ac_status = 0, -- 0: DC, 1: AC
     }
 }
+
+local _widgets = {}
+local _icons   = {}
 
 local function update_widget()
     local function finish(perc, ac_status)
@@ -31,24 +27,26 @@ local function update_widget()
         battery.now.perc = perc
         battery.now.ac_status = ac_status
 
-        -- Update Icon
-        if ac_status == 1 then
-            battery.icon:set_image(beautiful.widget_ac)
-            battery.widget:set_markup(markup.font(beautiful.font, " AC "))
-        else
-            if perc <= 5 then
-                battery.icon:set_image(beautiful.widget_battery_empty)
-            elseif perc <= 15 then
-                battery.icon:set_image(beautiful.widget_battery_low)
-            else
-                battery.icon:set_image(beautiful.widget_battery)
-            end
-            local label = string.format("%3d", perc)
-            battery.widget:set_markup(markup.font(beautiful.font, " " .. label .. "% "))
+        -- Update Icons
+        local icon_img = ac_status == 1 and beautiful.widget_ac or (
+            perc <= 5 and beautiful.widget_battery_empty or (
+                perc <= 15 and beautiful.widget_battery_low or beautiful.widget_battery
+            )
+        )
+        
+        local m = ac_status == 1 
+            and markup.font(beautiful.font, " AC ")
+            or  markup.font(beautiful.font, " " .. string.format("%3d", perc) .. "% ")
+
+        for _, i in ipairs(_icons) do
+            if i.valid then i:set_image(icon_img) end
+        end
+        for _, w in ipairs(_widgets) do
+            if w.valid then w:set_markup(m) end
         end
     end
 
-    if _os == "Linux" then
+    if _G._os == "Linux" then
         local base = "/sys/class/power_supply/"
         awful.spawn.easy_async_with_shell(
             string.format("cat %sBAT*/capacity %sAC*/online 2>/dev/null", base, base),
@@ -58,7 +56,7 @@ local function update_widget()
                 finish(lines[1], lines[2])
             end
         )
-    elseif _os == "FreeBSD" then
+    elseif _G._os == "FreeBSD" then
         awful.spawn.easy_async_with_shell(
             "sysctl -n hw.acpi.battery.life hw.acpi.acline",
             function(stdout)
@@ -67,7 +65,7 @@ local function update_widget()
                 finish(lines[1], lines[2])
             end
         )
-    elseif _os == "OpenBSD" then
+    elseif _G._os == "OpenBSD" then
         awful.spawn.easy_async_with_shell(
             "apm -l && apm -a",
             function(stdout)
@@ -83,13 +81,13 @@ end
 
 -- Check if battery exists before starting
 local function check_has_battery(cb)
-    if _os == "Linux" then
+    if _G._os == "Linux" then
         cb(gears.filesystem.dir_readable("/sys/class/power_supply/BAT0"))
-    elseif _os == "FreeBSD" then
+    elseif _G._os == "FreeBSD" then
         awful.spawn.easy_async_with_shell("sysctl -n hw.acpi.battery.units", function(out)
             cb(tonumber(out) and tonumber(out) > 0)
         end)
-    elseif _os == "OpenBSD" then
+    elseif _G._os == "OpenBSD" then
         -- On OpenBSD apm -l returns 255 if no battery
         awful.spawn.easy_async_with_shell("apm -l", function(out)
             cb(tonumber(out) and tonumber(out) ~= 255)
@@ -97,6 +95,14 @@ local function check_has_battery(cb)
     else
         cb(false)
     end
+end
+
+function battery.create()
+    local w = wibox.widget.textbox()
+    local i = wibox.widget.imagebox()
+    table.insert(_widgets, w)
+    table.insert(_icons, i)
+    return w, i
 end
 
 function battery.attach(timeout)

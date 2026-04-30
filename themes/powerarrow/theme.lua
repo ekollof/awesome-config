@@ -91,10 +91,7 @@ theme.widget_music                              = theme.dir .. "/icons/note.png"
 theme.widget_music_on                           = theme.dir .. "/icons/note_on.png"
 theme.widget_music_pause                        = theme.dir .. "/icons/pause.png"
 theme.widget_music_stop                         = theme.dir .. "/icons/stop.png"
-theme.widget_vol                                = theme.dir .. "/icons/vol.png"
-theme.widget_vol_low                            = theme.dir .. "/icons/vol_low.png"
-theme.widget_vol_no                             = theme.dir .. "/icons/vol_no.png"
-theme.widget_vol_mute                           = theme.dir .. "/icons/vol_mute.png"
+
 theme.widget_mail                               = theme.dir .. "/icons/mail.png"
 theme.widget_mail_on                            = theme.dir .. "/icons/mail_on.png"
 theme.widget_task                               = theme.dir .. "/icons/task.png"
@@ -144,20 +141,11 @@ theme.cal = lain.widget.cal({
 })
 
 -- ALSA volume
-local volicon = wibox.widget.imagebox(theme.widget_vol)
 theme.volume = lain.widget.alsabar({
     --togglechannel = "IEC958,3",
     notification_preset = { font = font10, fg = theme.fg_normal },
     settings = function()
-        if volume_now.status == "off" then
-            volicon:set_image(theme.widget_vol_mute)
-        elseif volume_now.level == 0 then
-            volicon:set_image(theme.widget_vol_no)
-        elseif volume_now.level <= 33 then
-            volicon:set_image(theme.widget_vol_low)
-        else
-            volicon:set_image(theme.widget_vol)
-        end
+        -- icon images removed; bar widget alone is sufficient
     end,
 })
 
@@ -457,11 +445,10 @@ function theme.at_screen_connect(s)
              has_battery and arrow(seg5, seg6) or arrow(seg5, seg_vol),
              has_battery and wibox.container.background(wibox.container.margin(wibox.widget { bat_icon, bat_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg6) or nil,
              has_battery and arrow(seg6, seg_vol) or nil,
-             wibox.container.background(wibox.container.margin(wibox.widget {
-                 volicon,
-                 wibox.container.constraint(theme.volume.bar, "exact", dpi(50), dpi(10)),
-                 layout = wibox.layout.fixed.horizontal,
-             }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
+             wibox.container.background(
+                 wibox.container.margin(
+                     wibox.container.constraint(theme.volume.bar, "exact", dpi(50), dpi(10)),
+                     dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
              arrow(seg_vol, seg7),
             wibox.container.background(wibox.container.margin(wibox.widget { local_neticon, net_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
             arrow(seg7, seg1),

@@ -34,12 +34,11 @@ local function update_widget()
         end
         
         uptime.now = text
-        local m = markup.font(beautiful.font, " " .. text .. " ")
+        local font = beautiful.font or "sans 10"
+        local m = markup.font(font, " " .. text .. " ")
 
         for _, w in ipairs(_widgets) do
-            if w.valid then
-                w:set_markup(m)
-            end
+            w:set_markup(m)
         end
     end
 
@@ -69,6 +68,8 @@ end
 function uptime.create()
     local w = wibox.widget.textbox()
     table.insert(_widgets, w)
+    -- Initial update
+    gears.timer.delayed_call(update_widget)
     return w
 end
 

@@ -351,6 +351,7 @@ local seg6    = wc.color6  or "#8DAA9A"
 local seg7    = wc.color3  or "#C0C0A2"
 local seg_vol = wc.color8  or "#606060"  -- distinct segment for volume widget
 
+
 function theme.at_screen_connect(s)
     -- Quake application
     s.quake = lain.util.quake({ app = awful.util.terminal })
@@ -368,21 +369,20 @@ function theme.at_screen_connect(s)
     -- Create a promptbox for each screen
     s.mypromptbox = awful.widget.prompt()
 
-    -- Per-screen widgets
-    local net_text = net_widget.create()
-    local uptime_text = uptime_widget.create()
+    -- Per-screen widgets (each screen needs its own instances)
+    local net_text     = net_widget.create()
+    local uptime_text  = uptime_widget.create()
     local bat_text, bat_icon = bat_widget.create()
+    local local_neticon = wibox.widget.textbox(" 󰲝 ")
 
-    neticon:connect_signal("mouse::enter", net_widget.popup_show)
-    net_text:connect_signal("mouse::enter", net_widget.popup_show)
-    neticon:connect_signal("mouse::leave", net_widget.popup_hide)
-    net_text:connect_signal("mouse::leave", net_widget.popup_hide)
+    local_neticon:connect_signal("mouse::enter", net_widget.popup_show)
+    net_text:connect_signal("mouse::enter",      net_widget.popup_show)
+    local_neticon:connect_signal("mouse::leave", net_widget.popup_hide)
+    net_text:connect_signal("mouse::leave",      net_widget.popup_hide)
 
     -- Create systray
     s.systray = wibox.widget.systray()
     s.systray:set_base_size(dpi(24))
-    -- Create an imagebox widget which will contains an icon indicating which layout we're using.
-    -- We need one layoutbox per screen.
     s.mylayoutbox = awful.widget.layoutbox(s)
     s.mylayoutbox:buttons(my_table.join(
                            awful.button({}, 1, function () awful.layout.inc( 1) end),
@@ -390,29 +390,21 @@ function theme.at_screen_connect(s)
                            awful.button({}, 3, function () awful.layout.inc(-1) end),
                            awful.button({}, 4, function () awful.layout.inc( 1) end),
                            awful.button({}, 5, function () awful.layout.inc(-1) end)))
-    -- Create a taglist widget
-    s.mytaglist = awful.widget.taglist(s, awful.widget.taglist.filter.all, awful.util.taglist_buttons)
-
-    -- Create a tasklist widget
+    s.mytaglist  = awful.widget.taglist(s,  awful.widget.taglist.filter.all,          awful.util.taglist_buttons)
     s.mytasklist = awful.widget.tasklist(s, awful.widget.tasklist.filter.currenttags, awful.util.tasklist_buttons)
+    s.mywibox    = awful.wibar({ position = "top", screen = s, height = dpi(32), bg = theme.bg_normal, fg = theme.fg_normal })
 
-    -- Create the wibox
-    s.mywibox = awful.wibar({ position = "top", screen = s, height = dpi(32), bg = theme.bg_normal, fg = theme.fg_normal })
-
-    -- Add widgets to the wibox
     s.mywibox:setup {
         layout = wibox.layout.align.horizontal,
-        { -- Left widgets
+        { -- Left
             layout = wibox.layout.fixed.horizontal,
-            --spr,
             s.mytaglist,
             s.mypromptbox,
             spr,
         },
-        s.mytasklist, -- Middle widget
-        { -- Right widgets
+        s.mytasklist,
+        { -- Right — flat block style (no powerline arrows)
             layout = wibox.layout.fixed.horizontal,
-            -- flat block style (no powerline arrows)
             pacman_widget and wibox.container.background(wibox.container.margin(pacman_widget, dpi(3), dpi(6)), seg1) or nil,
             mpdwidget,
             wibox.container.background(sysmon.create(), seg2),
@@ -433,12 +425,12 @@ function theme.at_screen_connect(s)
                  wibox.container.constraint(theme.volume.bar, "exact", dpi(50), dpi(10)),
                  layout = wibox.layout.fixed.horizontal,
              }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
-            wibox.container.background(wibox.container.margin(wibox.widget { neticon, net_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
-            wibox.container.background(wibox.container.margin(uptime_text, dpi(4), dpi(4)), seg1),
-            wibox.container.background(wibox.container.margin(clock, dpi(4), dpi(8)), seg2),
+            wibox.container.background(wibox.container.margin(wibox.widget { local_neticon, net_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
+            wibox.container.background(wibox.container.margin(uptime_text,  dpi(4), dpi(4)), seg1),
+            wibox.container.background(wibox.container.margin(clock,        dpi(4), dpi(8)), seg2),
             s.mylayoutbox,
             wibox.container.background(wibox.container.margin(require("widgets.notification_history").create(), dpi(4), dpi(4), dpi(4), dpi(4)), theme.bg_systray),
-            wibox.container.background(wibox.container.margin(s.systray, dpi(6), dpi(6), dpi(4), dpi(4)), theme.bg_systray),
+            wibox.container.background(wibox.container.margin(s.systray,    dpi(6), dpi(6), dpi(4), dpi(4)),   theme.bg_systray),
         },
     }
 end

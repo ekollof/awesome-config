@@ -375,30 +375,18 @@ function theme.powerline_rl(cr, width, height)
 end
 
 function theme.at_screen_connect(s)
-    -- Quake application
-    s.quake = lain.util.quake({ app = awful.util.terminal })
-
-    -- If wallpaper is a function, call it with the screen
-    local wallpaper = theme.wallpaper
-    if type(wallpaper) == "function" then
-        wallpaper = wallpaper(s)
-    end
-    gears.wallpaper.fit(wallpaper, s, theme.bg_normal)
-
-    -- Tags
-    awful.tag(awful.util.tagnames, s, awful.layout.layouts[1])
-
-    -- Create a promptbox for each screen
-    s.mypromptbox = awful.widget.prompt()
+    -- ...
+    local spr = wibox.widget.textbox(" ")
 
     -- Per-screen widgets
     local net_text = net_widget.create()
+    local local_neticon = wibox.widget.textbox(" 󰲝 ")
     local uptime_text = uptime_widget.create()
     local bat_text, bat_icon = bat_widget.create()
 
-    neticon:connect_signal("mouse::enter", net_widget.popup_show)
+    local_neticon:connect_signal("mouse::enter", net_widget.popup_show)
     net_text:connect_signal("mouse::enter", net_widget.popup_show)
-    neticon:connect_signal("mouse::leave", net_widget.popup_hide)
+    local_neticon:connect_signal("mouse::leave", net_widget.popup_hide)
     net_text:connect_signal("mouse::leave", net_widget.popup_hide)
 
     -- Create systray
@@ -427,7 +415,6 @@ function theme.at_screen_connect(s)
         layout = wibox.layout.align.horizontal,
         { -- Left widgets
             layout = wibox.layout.fixed.horizontal,
-            --spr,
             s.mytaglist,
             s.mypromptbox,
             spr,
@@ -463,7 +450,7 @@ function theme.at_screen_connect(s)
                  layout = wibox.layout.fixed.horizontal,
              }, dpi(3), dpi(4), dpi(8), dpi(8)), seg_vol),
              arrow(seg_vol, seg7),
-            wibox.container.background(wibox.container.margin(wibox.widget { neticon, net_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
+            wibox.container.background(wibox.container.margin(wibox.widget { local_neticon, net_text, layout = wibox.layout.align.horizontal }, dpi(3), dpi(3)), seg7),
             arrow(seg7, seg1),
             wibox.container.background(wibox.container.margin(uptime_text, dpi(4), dpi(4)), seg1),
             arrow(seg1, seg2),

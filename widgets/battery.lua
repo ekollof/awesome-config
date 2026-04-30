@@ -27,6 +27,8 @@ local function update_widget()
         battery.now.perc = perc
         battery.now.ac_status = ac_status
 
+        local font = beautiful.font or "sans 10"
+
         -- Update Icons
         local icon_img = ac_status == 1 and beautiful.widget_ac or (
             perc <= 5 and beautiful.widget_battery_empty or (
@@ -35,14 +37,14 @@ local function update_widget()
         )
         
         local m = ac_status == 1 
-            and markup.font(beautiful.font, " AC ")
-            or  markup.font(beautiful.font, " " .. string.format("%3d", perc) .. "% ")
+            and markup.font(font, " AC ")
+            or  markup.font(font, " " .. string.format("%3d", perc) .. "% ")
 
         for _, i in ipairs(_icons) do
-            if i.valid then i:set_image(icon_img) end
+            i:set_image(icon_img)
         end
         for _, w in ipairs(_widgets) do
-            if w.valid then w:set_markup(m) end
+            w:set_markup(m)
         end
     end
 
@@ -102,6 +104,8 @@ function battery.create()
     local i = wibox.widget.imagebox()
     table.insert(_widgets, w)
     table.insert(_icons, i)
+    -- Initial update
+    gears.timer.delayed_call(update_widget)
     return w, i
 end
 

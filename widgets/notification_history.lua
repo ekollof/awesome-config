@@ -98,9 +98,7 @@ function update_indicators()
     end
 
     for _, w in ipairs(indicator_widgets) do
-        if w.valid then
-            w:set_markup(markup)
-        end
+        w:set_markup(markup)
     end
 end
 

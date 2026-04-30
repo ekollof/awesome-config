@@ -282,11 +282,6 @@ theme.volume.bar:buttons(my_table.join (
 local volumebg = wibox.container.background(theme.volume.bar, gray, gears.shape.rectangle)
 local volumewidget = wibox.container.margin(volumebg, dpi(2), dpi(7), dpi(4), dpi(4))
 
--- Separators
-local first     = wibox.widget.textbox(" ")
-local small_spr = wibox.widget.textbox(" ")
-local bar_spr   = wibox.widget.textbox(markup.fontfg(theme.font, gray, " | "))
-
 -- Eminent-like task filtering
 local orig_filter = awful.widget.taglist.filter.all
 
@@ -301,29 +296,19 @@ end
 -- Per-screen setup
 -- ---------------------------------------------------------------------------
 function theme.at_screen_connect(s)
-    -- Quake application
-    s.quake = lain.util.quake({ app = awful.util.terminal })
-
-    -- If wallpaper is a function, call it with the screen
-    local wallpaper = theme.wallpaper
-    if type(wallpaper) == "function" then
-        wallpaper = wallpaper(s)
-    end
-    gears.wallpaper.fit(wallpaper, s)
-
-    -- Tags
-    awful.tag(awful.util.tagnames, s, awful.layout.layouts[1])
-
-    -- Create a promptbox for each screen
-    s.mypromptbox = awful.widget.prompt()
+    -- ...
+    local spr = wibox.widget.textbox(" ")
+    local bar_spr = wibox.widget.textbox()
+    bar_spr:set_markup(markup.fontfg(theme.font, gray, " | "))
 
     -- Per-screen widgets
     local net_text = net_widget.create()
     local bat_text, bat_icon = bat_widget.create()
+    local local_neticon = wibox.widget.textbox(" 󰲝 ")
 
-    neticon:connect_signal("mouse::enter", net_widget.popup_show)
+    local_neticon:connect_signal("mouse::enter", net_widget.popup_show)
     net_text:connect_signal("mouse::enter", net_widget.popup_show)
-    neticon:connect_signal("mouse::leave", net_widget.popup_hide)
+    local_neticon:connect_signal("mouse::leave", net_widget.popup_hide)
     net_text:connect_signal("mouse::leave", net_widget.popup_hide)
 
     -- Layoutbox
@@ -350,9 +335,9 @@ function theme.at_screen_connect(s)
     local right_widgets = {
         layout = wibox.layout.fixed.horizontal,
         wibox.widget.systray(),
-        small_spr,
+        spr,
         notif_hist.create(),
-        small_spr,
+        spr,
         mpdicon,
         theme.mpd.widget,
         bar_spr,
@@ -369,7 +354,7 @@ function theme.at_screen_connect(s)
     table.insert(right_widgets, volicon)
     table.insert(right_widgets, volumewidget)
     table.insert(right_widgets, bar_spr)
-    table.insert(right_widgets, neticon)
+    table.insert(right_widgets, local_neticon)
     table.insert(right_widgets, net_text)
     table.insert(right_widgets, bar_spr)
     table.insert(right_widgets, mytextclock)
@@ -378,12 +363,12 @@ function theme.at_screen_connect(s)
         layout = wibox.layout.align.horizontal,
         { -- Left widgets
             layout = wibox.layout.fixed.horizontal,
-            small_spr,
+            spr,
             s.mylayoutbox,
-            first,
+            spr,
             bar_spr,
             s.mytaglist,
-            first,
+            spr,
             s.mypromptbox,
         },
         s.mytasklist, -- Middle widget

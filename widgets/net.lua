@@ -110,12 +110,14 @@ local function update()
             net.devices = devices
 
             local beautiful = require("beautiful")
+            local font = beautiful.font or "sans 10"
+            local fg = beautiful.fg_normal or "#ffffff"
             local m = markup.fontfg(
-                beautiful.font, beautiful.fg_normal,
+                font, fg,
                 " " .. fmt(total_rx) .. "↓ " .. fmt(total_tx) .. "↑ ")
 
             for _, w in ipairs(_widgets) do
-                if w.valid then w:set_markup(m) end
+                w:set_markup(m)
             end
         end
 
@@ -243,6 +245,8 @@ end
 function net.create()
     local w = wibox.widget.textbox()
     table.insert(_widgets, w)
+    -- Initial update
+    gears.timer.delayed_call(update)
     return w
 end
 
